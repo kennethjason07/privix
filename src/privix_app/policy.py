@@ -214,6 +214,17 @@ class PrivixPolicyEngine:
                 target_str = str(target_url).strip()
 
                 if target_str.startswith("http://") or target_str.startswith("https://"):
+                    # Detect and intercept fabricated media URLs with search query terms
+                    if "youtube.com/watch" in target_str.lower():
+                        v_part = target_str.lower().split("watch")[-1]
+                        if any(fake in v_part for fake in ("?vv=", "+", "%20", "play+", "+by+")) or ("?v=" in v_part and len(v_part.split("?v=")[-1].split("&")[0]) > 16):
+                            return PolicyResult(
+                                decision=PolicyDecision.BLOCK,
+                                reason=f"Fabricated YouTube video URL detected ('{target_str}'). Do not guess video URLs with search keywords. Use the 'click' action on the video result element on the page.",
+                                risk_level="MEDIUM",
+                                action_hash=action_hash,
+                            )
+
                     return PolicyResult(
                         decision=PolicyDecision.ALLOW,
                         reason=f"Standard web navigation allowed: {target_str}",

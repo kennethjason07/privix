@@ -37,6 +37,7 @@ from fastapi.staticfiles import StaticFiles
 from privix_app.audit import PrivixAuditLogger
 from privix_app.gateway import PrivixPrivacyGateway
 from privix_app.mock_server import PrivixMockServer
+from privix_app.planner import IntentPlan, SmartIntentPlanner
 from privix_app.policy import ActionContext, PolicyDecision, PolicyResult, PrivixPolicyEngine
 from privix_app.task_state import TaskLifecycleTracker, TaskState
 
@@ -162,6 +163,7 @@ async def _run_safe_task(
     custom_prompt: str | None = None,
     max_steps: int = 3,
     keep_browser_open: bool = False,
+    intent_plan: IntentPlan | None = None,
 ) -> None:
     """Execute the browsing task and stream progress via WebSocket."""
     from browser_use import Agent, BrowserProfile, BrowserSession, ChatOllama
@@ -175,14 +177,49 @@ async def _run_safe_task(
     record.state = TaskState.RUNNING.value
     await emit(EventType.STATE, state=TaskState.RUNNING.value, message="Initializing Ollama + browser...")
 
-    prompt = custom_prompt or SAFE_TASK_PROMPT
-    if custom_prompt and any(w in custom_prompt.lower() for w in ("play", "video", "yt", "youtube", "song", "stream")):
-        if "click" not in custom_prompt.lower():
-            prompt = (
-                f"{custom_prompt}. "
-                "Instructions: Search for the video/song, then click on the video result/thumbnail so it starts playing. "
-                "Once playback begins, call the done action."
-            )
+    # Apply smart intent plan if available
+    if intent_plan:
+        prompt = intent_plan.optimized_prompt
+        keep_browser_open = intent_plan.keep_browser_open
+        max_steps = intent_plan.recommended_steps
+        await emit(EventType.LOG, message=f"[Smart Planner] {intent_plan.description}")
+    else:
+        prompt = custom_prompt or SAFE_TASK_PROMPT
+
+    # Setup Policy Engine & Gateway for action interception & safety
+    policy_engine = PrivixPolicyEngine()
+
+    async def approval_handler(ctx: ActionContext, result: PolicyResult) -> bool:
+        approval_payload = {
+            "action_type": ctx.action_type,
+            "destination": ctx.destination or ctx.page_url,
+            "params": ctx.params,
+            "element_info": ctx.element_info,
+            "reason": result.reason,
+            "risk_level": result.risk_level,
+        }
+        await emit(EventType.APPROVAL, **approval_payload)
+        await emit(EventType.STATE, state=TaskState.WAITING_FOR_APPROVAL.value, message="Waiting for human approval...")
+        record.state = TaskState.WAITING_FOR_APPROVAL.value
+
+        fut: asyncio.Future = asyncio.get_event_loop().create_future()
+        _approval_futures[task_id] = fut
+        try:
+            approved = await asyncio.wait_for(asyncio.shield(fut), timeout=120)
+        except asyncio.TimeoutError:
+            approved = False
+            await emit(EventType.LOG, message="Approval timed out. Defaulting to DENY.")
+        finally:
+            _approval_futures.pop(task_id, None)
+
+        record.state = TaskState.RUNNING.value
+        return approved
+
+    gateway = PrivixPrivacyGateway(
+        policy_engine=policy_engine,
+        audit_logger=audit_logger,
+        approval_handler=approval_handler,
+    )
 
     browser_session = None
     try:
@@ -198,6 +235,7 @@ async def _run_safe_task(
         agent = Agent(
             task=prompt,
             llm=llm,
+            tools=gateway,
             browser_session=browser_session,
             use_vision=False,
             flash_mode=True,
@@ -208,9 +246,9 @@ async def _run_safe_task(
             max_actions_per_step=1,
         )
 
-        target_hint = "https://example.com" if not custom_prompt else "requested destination"
+        target_hint = intent_plan.start_url if (intent_plan and intent_plan.start_url) else ("https://example.com" if not custom_prompt else "requested destination")
         await emit(EventType.LOG, message=f"Browser opened. Starting agent ({max_steps} max steps permitted)...")
-        await emit(EventType.STATE, state="navigating", message="Navigating...")
+        await emit(EventType.STATE, state="navigating", message="Navigating...", current_url=target_hint)
 
         start = time.time()
         result = await asyncio.wait_for(agent.run(max_steps=max_steps), timeout=360)
@@ -512,15 +550,16 @@ async def start_task(body: dict):
             pass
         _active_browser_sessions.pop(old_tid, None)
 
-    # Auto-detect or parse keep_open option
-    keep_open_requested = body.get("keep_open")
-    if keep_open_requested is None:
-        # Auto-detect media playback / interactive prompts
-        lower_prompt = (custom_task or "").lower()
-        keep_open_requested = any(w in lower_prompt for w in ("play", "song", "video", "yt", "youtube", "music", "stream", "watch"))
-
-    # Determine step bounds
-    custom_max_steps = int(body.get("max_steps", 12 if keep_open_requested else 10))
+    # Compile smart intent for custom tasks
+    intent_plan = None
+    if mode == "custom":
+        user_steps = int(body["max_steps"]) if "max_steps" in body else None
+        intent_plan = SmartIntentPlanner.compile(
+            raw_prompt=custom_task,
+            user_keep_open=body.get("keep_open"),
+            user_steps=user_steps,
+        )
+        task_text = intent_plan.optimized_prompt
 
     # Launch the task in the background
     if mode == "safe":
@@ -534,14 +573,22 @@ async def start_task(body: dict):
             _run_safe_task(
                 task_id,
                 custom_prompt=custom_task,
-                max_steps=custom_max_steps,
-                keep_browser_open=bool(keep_open_requested),
+                max_steps=intent_plan.recommended_steps if intent_plan else 10,
+                keep_browser_open=intent_plan.keep_browser_open if intent_plan else False,
+                intent_plan=intent_plan,
             )
         )
     else:
         return JSONResponse({"error": f"Unknown mode '{mode}'"}, status_code=400)
 
-    return {"task_id": task_id, "mode": mode, "keep_open": bool(keep_open_requested), "max_steps": custom_max_steps}
+    return {
+        "task_id": task_id,
+        "mode": mode,
+        "intent": intent_plan.intent_type if intent_plan else "default",
+        "description": intent_plan.description if intent_plan else "Standard task execution",
+        "keep_open": intent_plan.keep_browser_open if intent_plan else False,
+        "max_steps": intent_plan.recommended_steps if intent_plan else 3,
+    }
 
 
 @app.post("/api/cancel")

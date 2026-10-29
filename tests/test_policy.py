@@ -74,6 +74,16 @@ class TestPrivixPolicyEngine(unittest.TestCase):
         result = self.engine.evaluate(ctx)
         self.assertEqual(result.decision, PolicyDecision.BLOCK)
 
+    def test_fabricated_media_url_blocked(self):
+        ctx = ActionContext(
+            action_type="navigate",
+            params={"url": "https://www.youtube.com/watch?vv=play+closer+by+ed+Sheeran"},
+            destination="https://www.youtube.com/watch?vv=play+closer+by+ed+Sheeran",
+        )
+        result = self.engine.evaluate(ctx)
+        self.assertEqual(result.decision, PolicyDecision.BLOCK)
+        self.assertIn("Fabricated YouTube video URL detected", result.reason)
+
     def test_form_submission_requires_approval(self):
         # Test browser-use 'click' action on a submit button
         ctx = ActionContext(
@@ -263,6 +273,32 @@ class TestPrivixGatewayInterception(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(entries), 1)
         self.assertEqual(entries[0].decision, PolicyDecision.REQUIRE_APPROVAL.value)
         self.assertEqual(entries[0].approved, False)
+
+
+class TestSmartIntentPlanner(unittest.TestCase):
+    def test_youtube_media_intent_compilation(self):
+        from privix_app.planner import SmartIntentPlanner
+        plan = SmartIntentPlanner.compile("play closer by ed Sheeran on youtube")
+        self.assertEqual(plan.intent_type, "youtube_playback")
+        self.assertIn("closer by ed Sheeran", plan.query)
+        self.assertTrue(plan.keep_browser_open)
+        self.assertIn("https://www.youtube.com/results?search_query=", plan.start_url)
+        self.assertIn("Never use the 'navigate' action to guess watch URLs", plan.optimized_prompt)
+
+    def test_wikipedia_intent_compilation(self):
+        from privix_app.planner import SmartIntentPlanner
+        plan = SmartIntentPlanner.compile("search quantum computing on wikipedia")
+        self.assertEqual(plan.intent_type, "wikipedia_search")
+        self.assertIn("quantum computing", plan.query)
+        self.assertIn("en.wikipedia.org", plan.start_url)
+        self.assertFalse(plan.keep_browser_open)
+
+    def test_generic_prompt_fallback(self):
+        from privix_app.planner import SmartIntentPlanner
+        raw = "Open https://example.com and read the title."
+        plan = SmartIntentPlanner.compile(raw)
+        self.assertEqual(plan.intent_type, "generic")
+        self.assertEqual(plan.optimized_prompt, raw)
 
 
 if __name__ == "__main__":
