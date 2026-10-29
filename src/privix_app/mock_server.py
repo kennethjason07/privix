@@ -72,6 +72,59 @@ class MockRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
             self.wfile.write(MOCK_HTML.encode("utf-8"))
+        elif self.path == "/summary-test.html":
+            html = """<!DOCTYPE html><html><head><title>Synthetic Research Portal</title></head><body>
+            <h1>Synthetic Quantum Research</h1>
+            <p id="summary-content">Project Privix validates privacy-preserving local browser agents with zero cloud telemetry.</p>
+            </body></html>"""
+            self._serve_html(html)
+        elif self.path == "/interact-test.html":
+            html = """<!DOCTYPE html><html><head><title>Interaction Test Page</title></head><body>
+            <h1>Interactive Component</h1>
+            <button id="counter-btn" onclick="this.innerText='Clicked 1 times'; document.getElementById('result-msg').innerText='Action Verified';">Click Me</button>
+            <div id="result-msg">Pending</div>
+            </body></html>"""
+            self._serve_html(html)
+        elif self.path == "/page-nav-a.html":
+            html = """<!DOCTYPE html><html><head><title>Navigation Page Alpha</title></head><body>
+            <h1>Step 1: Alpha</h1>
+            <a id="nav-link" href="/page-nav-b.html">Proceed to Page Beta</a>
+            </body></html>"""
+            self._serve_html(html)
+        elif self.path == "/page-nav-b.html":
+            html = """<!DOCTYPE html><html><head><title>Navigation Page Beta</title></head><body>
+            <h1>Step 2: Beta Arrived</h1>
+            <p id="nav-success">Successfully navigated from Alpha to Beta.</p>
+            </body></html>"""
+            self._serve_html(html)
+        elif self.path == "/dynamic-test.html":
+            html = """<!DOCTYPE html><html><head><title>Dynamic Content Page</title></head><body>
+            <h1>Dynamic State Test</h1>
+            <div id="dynamic-target">Initial Loading State</div>
+            <script>
+                setTimeout(function() {
+                    document.getElementById('dynamic-target').innerText = 'Data Ready: Code SYN-7749';
+                }, 300);
+            </script>
+            </body></html>"""
+            self._serve_html(html)
+        elif self.path == "/missing-test.html":
+            html = """<!DOCTYPE html><html><head><title>Missing Element Page</title></head><body>
+            <h1>Standard Text Only</h1>
+            <p id="page-text">There are no interactive buttons or confirmation triggers on this page.</p>
+            </body></html>"""
+            self._serve_html(html)
+        elif self.path == "/timeout-test":
+            import time
+            time.sleep(3.0)
+            self._serve_html("<html><body>Delayed Response</body></html>")
+        elif self.path == "/verify-test.html":
+            html = """<!DOCTYPE html><html><head><title>Outcome Verification Page</title></head><body>
+            <h1>Verification Flow</h1>
+            <button id="btn-toggle" onclick="document.getElementById('verify-status').innerText='Outcome Complete';">Complete Step</button>
+            <div id="verify-status">Incomplete</div>
+            </body></html>"""
+            self._serve_html(html)
         elif self.path == "/status":
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -85,6 +138,12 @@ class MockRequestHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
             self.wfile.write(b"Not Found")
+
+    def _serve_html(self, html: str, status: int = 200) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(html.encode("utf-8"))
 
     def do_POST(self):
         content_length = int(self.headers.get("Content-Length", 0))

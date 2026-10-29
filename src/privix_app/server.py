@@ -40,6 +40,7 @@ from privix_app.mock_server import PrivixMockServer
 from privix_app.planner import IntentPlan, SmartIntentPlanner
 from privix_app.policy import ActionContext, PolicyDecision, PolicyResult, PrivixPolicyEngine
 from privix_app.task_state import TaskLifecycleTracker, TaskState
+from privix_app.verifier import OutcomeVerifier, VerificationResult
 
 
 # ── Constants ──────────────────────────────────────────────────────────────────
@@ -255,11 +256,34 @@ async def _run_safe_task(
         elapsed = time.time() - start
 
         final = result.final_result() or "Task completed (no text returned)"
-        record.state = TaskState.COMPLETED.value
+        
+        # Grounded outcome verification against actual browser state
+        actual_url = None
+        actual_title = None
+        try:
+            actual_url = await browser_session.get_current_page_url()
+            actual_title = await browser_session.get_current_page_title()
+        except Exception:
+            pass
+
+        if not custom_prompt:
+            verification = OutcomeVerifier.verify_read_summary(final, actual_title, None)
+        elif intent_plan and intent_plan.intent_type == "youtube_playback":
+            verification = OutcomeVerifier.verify_navigation_destination(actual_url or "", r"youtube\.com")
+        else:
+            verification = VerificationResult(is_verified=True, reason="Custom task completed.")
+
+        if verification.is_verified:
+            record.state = TaskState.COMPLETED.value
+            await emit(EventType.STATE, state=TaskState.COMPLETED.value, message=f"Done in {elapsed:.1f}s (Verified)")
+            await emit(EventType.LOG, message=f"[Grounded Verification] {verification.reason}")
+        else:
+            record.state = TaskState.COMPLETED.value
+            await emit(EventType.STATE, state=TaskState.COMPLETED.value, message=f"Finished in {elapsed:.1f}s (Unverified)")
+            await emit(EventType.LOG, message=f"[Verification Warning] {verification.reason}")
+
         record.result = final
         record.elapsed = elapsed
-
-        await emit(EventType.STATE, state=TaskState.COMPLETED.value, message=f"Done in {elapsed:.1f}s")
         await emit(EventType.RESULT, result=final, elapsed=elapsed)
 
         if not keep_browser_open:

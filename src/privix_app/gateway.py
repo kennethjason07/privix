@@ -58,21 +58,51 @@ class PrivixPrivacyGateway(Tools):
     async def _extract_element_info(
         self, browser_session: BrowserSession, index: int | None
     ) -> dict[str, Any] | None:
-        """Helper to inspect DOM element node metadata from cached selector map."""
+        """Helper to inspect DOM element node metadata from cached selector map with child text resolution."""
         if index is None:
             return None
+
+        node = None
         try:
-            summary = browser_session._cached_browser_state_summary
-            if summary and summary.dom_state and summary.dom_state.selector_map:
-                node = summary.dom_state.selector_map.get(index)
-                if node:
-                    return {
-                        "node_name": getattr(node, "node_name", ""),
-                        "attributes": getattr(node, "attributes", {}) or {},
-                        "text": getattr(node, "node_value", "") or "",
-                    }
+            if hasattr(browser_session, "get_dom_element_by_index"):
+                node = await browser_session.get_dom_element_by_index(index)
         except Exception:
             pass
+
+        if node is None:
+            try:
+                summary = getattr(browser_session, "_cached_browser_state_summary", None)
+                if summary and summary.dom_state and summary.dom_state.selector_map:
+                    node = summary.dom_state.selector_map.get(index)
+            except Exception:
+                pass
+
+        if node is not None:
+            # Extract comprehensive text including children text for button/link spans
+            text_val = ""
+            if hasattr(node, "get_all_children_text") and callable(node.get_all_children_text):
+                try:
+                    res = node.get_all_children_text()
+                    if isinstance(res, str):
+                        text_val = res
+                except Exception:
+                    pass
+            if not text_val:
+                raw = getattr(node, "node_value", "") or getattr(node, "text", "") or ""
+                text_val = str(raw) if isinstance(raw, str) else ""
+
+            node_name_raw = getattr(node, "node_name", "") or getattr(node, "tag_name", "")
+            node_name = str(node_name_raw) if isinstance(node_name_raw, str) else ""
+
+            attrs_raw = getattr(node, "attributes", {}) or {}
+            attrs = attrs_raw if isinstance(attrs_raw, dict) else {}
+
+            return {
+                "node_name": node_name,
+                "attributes": attrs,
+                "text": text_val,
+            }
+
         return None
 
     async def act(

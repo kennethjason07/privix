@@ -27,6 +27,7 @@ from privix_app.audit import PrivixAuditLogger
 from privix_app.gateway import PrivixPrivacyGateway
 from privix_app.mock_server import PrivixMockServer
 from privix_app.policy import ActionContext, PolicyDecision, PrivixPolicyEngine
+from privix_app.verifier import OutcomeVerifier
 
 
 def log_state(state: str, details: str = ""):
@@ -75,12 +76,26 @@ async def run_safe_task(headless: bool = False) -> tuple[bool, float, str]:
         result = await agent.run(max_steps=2)
         elapsed = time.time() - start_time
         final_text = result.final_result() or "Task finished"
-        log_state("Completed", f"Finished in {elapsed:.1f}s")
+
+        actual_url = None
+        actual_title = None
+        try:
+            actual_url = await browser_session.get_current_page_url()
+            actual_title = await browser_session.get_current_page_title()
+        except Exception:
+            pass
+
+        verification = OutcomeVerifier.verify_read_summary(final_text, actual_title, None)
+        status_label = "Completed (Verified)" if verification.is_verified else "Completed (Unverified)"
+        log_state(status_label, f"Finished in {elapsed:.1f}s | {verification.reason}")
         print("\n" + "=" * 60)
+        print("GROUNDED OUTCOME VERIFICATION:")
+        print(f"  Verified : {verification.is_verified}")
+        print(f"  Reason   : {verification.reason}")
         print("FINAL RESULT SUMMARY:")
         print(final_text)
         print("=" * 60)
-        return True, elapsed, final_text
+        return verification.is_verified, elapsed, final_text
     except Exception as e:
         elapsed = time.time() - start_time
         log_state("Failed", f"Error encountered: {e}")
