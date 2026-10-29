@@ -3,668 +3,2508 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Privix — Privacy Gateway</title>
+  <title>Privix — Privacy-First AI Browser Agent</title>
   <style>
-    /* ── Reset & Base ── */
+    /* ── Reset & CSS Custom Properties ───────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    
     :root {
-      --bg:       #0f1117;
-      --surface:  #1a1d27;
-      --surface2: #222636;
-      --border:   #2e3347;
-      --accent:   #6366f1;
-      --accent2:  #818cf8;
-      --green:    #22c55e;
-      --red:      #ef4444;
-      --yellow:   #f59e0b;
-      --blue:     #3b82f6;
-      --text:     #e2e8f0;
-      --muted:    #94a3b8;
-      --radius:   10px;
-      --font:     'Segoe UI', system-ui, -apple-system, sans-serif;
+      --bg-base:        #0a0d12;
+      --bg-surface:     #11151e;
+      --bg-elevated:    #171c28;
+      --bg-subtle:      #1c2232;
+      --bg-hover:       #21283a;
+      
+      --border-subtle:  #232a3c;
+      --border-medium:  #2f384f;
+      --border-focus:   #14b8a6;
+      
+      --teal-500:       #14b8a6;
+      --teal-400:       #2dd4bf;
+      --teal-300:       #5eead4;
+      --teal-600:       #0d9488;
+      --teal-bg:        rgba(20, 184, 166, 0.12);
+      --teal-border:    rgba(20, 184, 166, 0.28);
+      
+      --emerald-500:    #10b981;
+      --emerald-400:    #34d399;
+      --emerald-bg:     rgba(16, 185, 129, 0.12);
+      --emerald-border: rgba(16, 185, 129, 0.28);
+      
+      --red-500:        #f43f5e;
+      --red-400:        #fb7185;
+      --red-bg:         rgba(244, 63, 94, 0.12);
+      --red-border:     rgba(244, 63, 94, 0.28);
+      
+      --amber-500:      #f59e0b;
+      --amber-400:      #fbbf24;
+      --amber-bg:       rgba(245, 158, 11, 0.12);
+      --amber-border:   rgba(245, 158, 11, 0.28);
+      
+      --sky-500:        #38bdf8;
+      --sky-bg:         rgba(56, 189, 248, 0.12);
+      --sky-border:     rgba(56, 189, 248, 0.28);
+      
+      --text-main:      #f1f5f9;
+      --text-muted:     #94a3b8;
+      --text-faint:     #64748b;
+      
+      --radius-sm:      4px;
+      --radius-md:      8px;
+      --radius-lg:      12px;
+      --radius-full:    9999px;
+      
+      --font-sans:      -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+      --font-mono:      "JetBrains Mono", "SF Mono", Consolas, Menlo, monospace;
+      
+      --shadow-sm:      0 1px 2px rgba(0, 0, 0, 0.4);
+      --shadow-md:      0 4px 12px rgba(0, 0, 0, 0.5);
+      --shadow-lg:      0 12px 32px rgba(0, 0, 0, 0.7);
     }
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; line-height: 1.5; }
 
-    /* ── Layout ── */
-    #app { display: flex; flex-direction: column; min-height: 100vh; }
-    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; }
-    .logo { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
-    .logo-icon { width: 32px; height: 32px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
-    .badge { font-size: 10px; font-weight: 600; background: #1e293b; border: 1px solid var(--border); color: var(--muted); padding: 2px 8px; border-radius: 20px; letter-spacing: 0.5px; text-transform: uppercase; }
-    #status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; margin-right: 6px; transition: background 0.3s; }
-    #status-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
-    #status-text { font-size: 12px; color: var(--muted); }
-
-    main { flex: 1; display: grid; grid-template-columns: 1fr 380px; gap: 0; }
-    aside { background: var(--surface); border-right: 1px solid var(--border); padding: 24px 20px; display: flex; flex-direction: column; gap: 20px; }
-
-    /* ── Task panel ── */
-    .section-title { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
-    .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .mode-btn {
-      padding: 12px 10px; border-radius: var(--radius); border: 2px solid var(--border);
-      background: var(--surface2); color: var(--text); cursor: pointer;
-      font-size: 13px; font-weight: 600; text-align: center; transition: all 0.15s;
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
     }
-    .mode-btn:hover { border-color: var(--accent2); background: #252a3b; }
-    .mode-btn.active { border-color: var(--accent); background: #2a2f50; color: var(--accent2); }
-    .mode-btn .mode-icon { font-size: 18px; display: block; margin-bottom: 4px; }
-    .mode-btn .mode-label { font-size: 11px; color: var(--muted); font-weight: 400; display: block; margin-top: 2px; }
-    .custom-task-wrap { display: none; flex-direction: column; gap: 6px; }
-    .custom-task-wrap.visible { display: flex; }
-    textarea {
-      width: 100%; border-radius: 8px; border: 1px solid var(--border);
-      background: var(--surface2); color: var(--text); padding: 10px 12px;
-      font-size: 13px; font-family: var(--font); resize: vertical; min-height: 80px;
-      outline: none; transition: border-color 0.15s;
+
+    html, body {
+      height: 100%;
+      background: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 13.5px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
     }
-    textarea:focus { border-color: var(--accent); }
-    .run-btn {
-      padding: 12px; border-radius: var(--radius); border: none;
-      background: var(--accent); color: #fff; font-size: 14px; font-weight: 700;
-      cursor: pointer; transition: background 0.15s, transform 0.1s;
-      display: flex; align-items: center; justify-content: center; gap: 8px;
+
+    /* ── Focus Outline ───────────────────────────────────────────────────────── */
+    a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+      outline: 2px solid var(--teal-500);
+      outline-offset: 2px;
     }
-    .run-btn:hover:not(:disabled) { background: #4f52d4; }
-    .run-btn:active:not(:disabled) { transform: scale(0.98); }
-    .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    /* ── State timeline ── */
-    .state-bar { padding: 14px 16px; border-radius: var(--radius); background: var(--surface2); border: 1px solid var(--border); }
-    .state-bar .state-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
-    .state-bar .state-value { font-size: 15px; font-weight: 700; margin-top: 4px; }
-    .state-value.completed { color: var(--green); }
-    .state-value.failed, .state-value.blocked { color: var(--red); }
-    .state-value.waiting_for_approval { color: var(--yellow); }
-    .state-value.running, .state-value.navigating { color: var(--blue); }
-    .state-value.queued { color: var(--muted); }
-
-    /* ── Approval card ── */
-    #approval-card {
-      display: none; flex-direction: column; gap: 12px;
-      padding: 16px; border-radius: var(--radius);
-      background: #1c1a00; border: 2px solid var(--yellow);
+    /* ── App Shell Layout ────────────────────────────────────────────────────── */
+    #app-container {
+      display: grid;
+      grid-template-columns: 250px 1fr;
+      height: 100vh;
+      width: 100vw;
     }
-    #approval-card.visible { display: flex; }
-    #approval-card .appr-title { font-size: 13px; font-weight: 700; color: var(--yellow); display: flex; align-items: center; gap: 6px; }
-    #approval-card .appr-row { display: flex; gap: 8px; align-items: flex-start; }
-    #approval-card .appr-key { font-size: 11px; color: var(--muted); width: 90px; flex-shrink: 0; padding-top: 1px; }
-    #approval-card .appr-val { font-size: 12px; color: var(--text); word-break: break-all; }
-    #approval-card .appr-risk { display: inline-block; padding: 1px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; }
-    #approval-card .appr-risk.HIGH, #approval-card .appr-risk.CRITICAL { background: #3b1212; color: var(--red); }
-    #approval-card .appr-risk.MEDIUM { background: #3b2800; color: var(--yellow); }
-    #approval-card .appr-risk.LOW { background: #0a2e1c; color: var(--green); }
-    .appr-btns { display: flex; gap: 8px; margin-top: 4px; }
-    .appr-btn { flex: 1; padding: 9px; border-radius: 8px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
-    .appr-btn.allow { background: var(--green); color: #fff; }
-    .appr-btn.allow:hover { opacity: 0.85; }
-    .appr-btn.deny { background: var(--red); color: #fff; }
-    .appr-btn.deny:hover { opacity: 0.85; }
 
-    /* ── Main content ── */
-    .content { display: flex; flex-direction: column; overflow: hidden; }
-    .tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--surface); }
-    .tab {
-      padding: 12px 20px; font-size: 13px; font-weight: 600; cursor: pointer;
-      border-bottom: 2px solid transparent; color: var(--muted);
-      transition: color 0.15s, border-color 0.15s;
+    /* ── Sidebar ─────────────────────────────────────────────────────────────── */
+    aside#sidebar {
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100%;
+      user-select: none;
     }
-    .tab:hover { color: var(--text); }
-    .tab.active { color: var(--accent2); border-bottom-color: var(--accent); }
-    .tab-badge { display: inline-block; background: var(--accent); color: #fff; border-radius: 10px; font-size: 10px; padding: 0 6px; margin-left: 6px; vertical-align: middle; }
 
-    .panels { flex: 1; overflow: hidden; position: relative; }
-    .panel { display: none; flex-direction: column; height: 100%; padding: 20px 24px; overflow-y: auto; }
-    .panel.active { display: flex; }
-
-    /* ── Result panel ── */
-    .result-box {
-      background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 16px; font-size: 13px; line-height: 1.7; white-space: pre-wrap;
-      min-height: 80px; color: var(--text);
+    .sidebar-brand {
+      padding: 18px 20px 16px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
-    .result-box.success { border-color: #1a4731; background: #0a1f14; }
-    .result-box.error { border-color: #4a1515; background: #1f0a0a; color: var(--red); }
-    .meta-row { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
-    .meta-chip {
-      font-size: 11px; font-weight: 700; letter-spacing: 0.5px; padding: 3px 10px;
-      border-radius: 20px; text-transform: uppercase;
+
+    .brand-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius-md);
+      background: var(--teal-bg);
+      border: 1px solid var(--teal-border);
+      color: var(--teal-400);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
     }
-    .meta-chip.green { background: #0f3024; color: var(--green); }
-    .meta-chip.red { background: #300f0f; color: var(--red); }
-    .meta-chip.blue { background: #0f1f40; color: var(--blue); }
 
-    /* ── Log panel ── */
-    #log-list { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-family: 'Consolas', 'Courier New', monospace; }
-    .log-entry { padding: 8px 12px; border-radius: 6px; background: var(--surface2); border-left: 3px solid var(--border); color: var(--muted); }
-    .log-entry.state { border-left-color: var(--blue); color: var(--blue); }
-    .log-entry.approval { border-left-color: var(--yellow); color: var(--yellow); background: #1c1a00; }
-    .log-entry.denied { border-left-color: var(--red); color: var(--red); }
-    .log-entry.approved { border-left-color: var(--green); color: var(--green); }
-    .log-entry.error { border-left-color: var(--red); color: var(--red); background: #1f0a0a; }
-    .log-time { color: var(--muted); margin-right: 8px; font-size: 10px; }
+    .brand-text h1 {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
 
-    /* ── Audit panel ── */
-    .audit-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .audit-table th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
-    .audit-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
-    .audit-table tr:last-child td { border-bottom: none; }
-    .decision-chip { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
-    .decision-chip.ALLOW { background: #0f3024; color: var(--green); }
-    .decision-chip.BLOCK { background: #300f0f; color: var(--red); }
-    .decision-chip.REQUIRE_APPROVAL { background: #3b2800; color: var(--yellow); }
-    .risk-chip { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; }
-    .risk-chip.LOW { background: #0f3024; color: var(--green); }
-    .risk-chip.MEDIUM { background: #3b2800; color: var(--yellow); }
-    .risk-chip.HIGH, .risk-chip.CRITICAL { background: #300f0f; color: var(--red); }
-    .empty-state { text-align: center; color: var(--muted); padding: 40px; font-size: 13px; }
+    .brand-text p {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
 
-    /* ── Mock status panel in sidebar ── */
-    .mock-status { padding: 12px 14px; border-radius: var(--radius); background: var(--surface2); border: 1px solid var(--border); font-size: 12px; }
-    .mock-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-    .mock-row:last-child { margin-bottom: 0; }
-    .mock-val { font-weight: 700; color: var(--text); }
-    .mock-val.zero { color: var(--green); }
-    .mock-val.nonzero { color: var(--red); }
-    a { color: var(--accent2); text-decoration: none; }
-    a:hover { text-decoration: underline; }
+    .version-tag {
+      font-size: 9.5px;
+      font-weight: 700;
+      color: var(--teal-400);
+      background: var(--teal-bg);
+      border: 1px solid var(--teal-border);
+      padding: 1px 6px;
+      border-radius: var(--radius-full);
+      letter-spacing: 0.5px;
+    }
 
-    /* ── Spinner ── */
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(99,102,241,0.3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; }
+    nav.sidebar-nav {
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
 
-    /* ── Scrollbars ── */
-    ::-webkit-scrollbar { width: 6px; } 
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .nav-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-faint);
+      padding: 10px 10px 4px 10px;
+    }
 
-    /* ── Responsive ── */
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 9px 12px;
+      border-radius: var(--radius-md);
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      width: 100%;
+    }
+
+    .nav-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-main);
+    }
+
+    .nav-btn.active {
+      background: var(--teal-bg);
+      border-color: var(--teal-border);
+      color: var(--teal-300);
+      font-weight: 600;
+    }
+
+    .nav-btn svg {
+      width: 17px;
+      height: 17px;
+      flex-shrink: 0;
+      stroke-width: 2;
+    }
+
+    .sidebar-footer {
+      padding: 14px 16px;
+      border-top: 1px solid var(--border-subtle);
+      background: rgba(10, 13, 18, 0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .system-status-card {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11.5px;
+    }
+
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: var(--radius-full);
+      background: var(--text-faint);
+    }
+
+    .dot.online {
+      background: var(--emerald-500);
+      box-shadow: 0 0 6px rgba(16, 185, 129, 0.7);
+    }
+
+    .dot.offline {
+      background: var(--red-500);
+    }
+
+    .model-badge {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      padding: 1px 6px;
+      border-radius: var(--radius-sm);
+    }
+
+    /* ── Main Layout ─────────────────────────────────────────────────────────── */
+    main#main-content {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--bg-base);
+    }
+
+    /* ── Top Bar ─────────────────────────────────────────────────────────────── */
+    header#topbar {
+      height: 54px;
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .breadcrumb-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .breadcrumb-sep {
+      color: var(--text-faint);
+      font-size: 12px;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .security-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      background: var(--emerald-bg);
+      border: 1px solid var(--emerald-border);
+      color: var(--emerald-400);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+
+    .demo-mode-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      background: var(--sky-bg);
+      border: 1px solid var(--sky-border);
+      color: var(--sky-500);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* ── Content View Panels ─────────────────────────────────────────────────── */
+    .view-panel {
+      display: none;
+      flex: 1;
+      height: calc(100vh - 54px);
+      overflow-y: auto;
+      padding: 24px;
+    }
+
+    .view-panel.active {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* ── Workspace / Composer ────────────────────────────────────────────────── */
+    .workspace-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title svg {
+      width: 16px;
+      height: 16px;
+      color: var(--teal-400);
+    }
+
+    .mode-selector {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .mode-tab {
+      padding: 12px 14px;
+      border-radius: var(--radius-md);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: all 0.15s ease;
+      text-align: left;
+    }
+
+    .mode-tab:hover {
+      background: var(--bg-hover);
+      border-color: var(--border-medium);
+    }
+
+    .mode-tab.active {
+      background: var(--teal-bg);
+      border-color: var(--teal-500);
+    }
+
+    .mode-tab-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .mode-tab.active .mode-tab-title {
+      color: var(--teal-300);
+    }
+
+    .mode-tab-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.35;
+    }
+
+    /* Suggested tasks chips */
+    .task-suggestions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .suggestion-label {
+      font-size: 11px;
+      color: var(--text-faint);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .chip-btn {
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      font-size: 11.5px;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .chip-btn:hover {
+      background: var(--bg-hover);
+      border-color: var(--border-medium);
+      color: var(--text-main);
+    }
+
+    .composer-input-wrap {
+      margin-bottom: 16px;
+    }
+
+    textarea#task-prompt-input {
+      width: 100%;
+      height: 74px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.5;
+      resize: vertical;
+      transition: border-color 0.15s;
+    }
+
+    textarea#task-prompt-input:focus {
+      border-color: var(--teal-500);
+      outline: none;
+    }
+
+    textarea#task-prompt-input:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .composer-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .actions-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .actions-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 8px 16px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.12s ease;
+      border: 1px solid transparent;
+      user-select: none;
+    }
+
+    .btn svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    .btn-primary {
+      background: var(--teal-500);
+      color: #071916;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--teal-400);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+
+    .btn-danger {
+      background: var(--red-bg);
+      border-color: var(--red-border);
+      color: var(--red-400);
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: rgba(244, 63, 94, 0.22);
+    }
+
+    .btn-secondary {
+      background: var(--bg-subtle);
+      border-color: var(--border-subtle);
+      color: var(--text-main);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--bg-hover);
+      border-color: var(--border-medium);
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* ── Active Execution Monitor Bar ────────────────────────────────────────── */
+    .status-monitor-card {
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      align-items: center;
+      gap: 20px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 14px 20px;
+    }
+
+    .state-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 12px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+    }
+
+    .state-badge.idle        { background: var(--bg-subtle); color: var(--text-muted); border: 1px solid var(--border-subtle); }
+    .state-badge.queued      { background: var(--bg-subtle); color: var(--text-muted); border: 1px solid var(--border-subtle); }
+    .state-badge.running     { background: var(--teal-bg); color: var(--teal-400); border: 1px solid var(--teal-border); }
+    .state-badge.navigating  { background: var(--sky-bg); color: var(--sky-500); border: 1px solid var(--sky-border); }
+    .state-badge.waiting_for_approval { background: var(--amber-bg); color: var(--amber-400); border: 1px solid var(--amber-border); animation: pulse-border 1.5s infinite; }
+    .state-badge.completed   { background: var(--emerald-bg); color: var(--emerald-400); border: 1px solid var(--emerald-border); }
+    .state-badge.failed      { background: var(--red-bg); color: var(--red-400); border: 1px solid var(--red-border); }
+    .state-badge.cancelled   { background: var(--bg-subtle); color: var(--text-muted); border: 1px solid var(--border-subtle); }
+
+    @keyframes pulse-border {
+      0%, 100% { border-color: rgba(245, 158, 11, 0.3); }
+      50% { border-color: rgba(245, 158, 11, 0.9); }
+    }
+
+    .monitor-target-url {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .monitor-target-url a {
+      color: var(--teal-400);
+      text-decoration: none;
+    }
+
+    .monitor-target-url a:hover {
+      text-decoration: underline;
+    }
+
+    .monitor-timer {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .submissions-counter-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .submissions-counter-badge.safe {
+      background: var(--emerald-bg);
+      border: 1px solid var(--emerald-border);
+      color: var(--emerald-400);
+    }
+
+    .submissions-counter-badge.breach {
+      background: var(--red-bg);
+      border: 1px solid var(--red-border);
+      color: var(--red-400);
+    }
+
+    /* ── Split Workspace Panels (Logs + Output) ──────────────────────────────── */
+    .workspace-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 1080px) {
+      .workspace-split {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Timeline & Logs */
+    .timeline-card {
+      display: flex;
+      flex-direction: column;
+      height: 380px;
+    }
+
+    .timeline-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .log-viewport {
+      flex: 1;
+      overflow-y: auto;
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 10px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .log-item {
+      padding: 6px 10px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      border-left: 3px solid var(--border-medium);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.45;
+      word-break: break-all;
+    }
+
+    .log-item.state    { border-left-color: var(--sky-500); }
+    .log-item.log      { border-left-color: var(--border-medium); color: var(--text-muted); }
+    .log-item.audit    { border-left-color: var(--teal-500); background: var(--teal-bg); color: var(--teal-300); }
+    .log-item.approval { border-left-color: var(--amber-500); background: var(--amber-bg); color: var(--amber-400); }
+    .log-item.approved { border-left-color: var(--emerald-500); color: var(--emerald-400); }
+    .log-item.denied   { border-left-color: var(--red-500); background: var(--red-bg); color: var(--red-400); }
+    .log-item.error    { border-left-color: var(--red-500); background: var(--red-bg); color: var(--red-400); font-weight: 600; }
+
+    .log-item-time {
+      color: var(--text-faint);
+      font-size: 10.5px;
+      flex-shrink: 0;
+      padding-top: 1px;
+    }
+
+    .log-item-text {
+      flex: 1;
+    }
+
+    /* Result Panel */
+    .result-card {
+      display: flex;
+      flex-direction: column;
+      height: 380px;
+    }
+
+    .result-viewport {
+      flex: 1;
+      overflow-y: auto;
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .result-empty {
+      color: var(--text-faint);
+      font-style: italic;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 10px;
+      text-align: center;
+    }
+
+    .result-empty svg {
+      width: 32px;
+      height: 32px;
+      color: var(--border-medium);
+    }
+
+    .result-meta-row {
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11.5px;
+      color: var(--text-muted);
+    }
+
+    /* ── Privacy Center View ─────────────────────────────────────────────────── */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
     @media (max-width: 900px) {
-      main { grid-template-columns: 1fr; }
-      aside { border-right: none; border-bottom: 1px solid var(--border); }
+      .kpi-row { grid-template-columns: repeat(2, 1fr); }
     }
+
+    .kpi-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .kpi-label {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .kpi-value {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      letter-spacing: -0.5px;
+    }
+
+    .kpi-value.teal   { color: var(--teal-400); }
+    .kpi-value.green  { color: var(--emerald-400); }
+    .kpi-value.amber  { color: var(--amber-400); }
+    .kpi-value.red    { color: var(--red-400); }
+
+    .kpi-subtext {
+      font-size: 11px;
+      color: var(--text-faint);
+    }
+
+    /* Policy Architecture Flow */
+    .pipeline-diagram {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      overflow-x: auto;
+    }
+
+    .pipeline-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      text-align: center;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      min-width: 140px;
+    }
+
+    .pipeline-node-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .pipeline-node-desc {
+      font-size: 10.5px;
+      color: var(--text-muted);
+    }
+
+    .pipeline-arrow {
+      color: var(--text-faint);
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+    }
+
+    /* ── Table Styling ───────────────────────────────────────────────────────── */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      background: var(--bg-surface);
+    }
+
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      text-align: left;
+    }
+
+    table.data-table th {
+      background: var(--bg-subtle);
+      padding: 10px 14px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-faint);
+      border-bottom: 1px solid var(--border-subtle);
+      white-space: nowrap;
+    }
+
+    table.data-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-subtle);
+      vertical-align: middle;
+      color: var(--text-main);
+    }
+
+    table.data-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    table.data-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Badges */
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      font-family: var(--font-mono);
+      white-space: nowrap;
+    }
+
+    .chip.ALLOW            { background: var(--emerald-bg); color: var(--emerald-400); border: 1px solid var(--emerald-border); }
+    .chip.BLOCK            { background: var(--red-bg); color: var(--red-400); border: 1px solid var(--red-border); }
+    .chip.REQUIRE_APPROVAL { background: var(--amber-bg); color: var(--amber-400); border: 1px solid var(--amber-border); }
+
+    .chip.risk-LOW         { background: var(--emerald-bg); color: var(--emerald-400); }
+    .chip.risk-MEDIUM      { background: var(--amber-bg); color: var(--amber-400); }
+    .chip.risk-HIGH        { background: var(--red-bg); color: var(--red-400); }
+    .chip.risk-CRITICAL    { background: var(--red-bg); color: var(--red-400); border: 1px solid var(--red-border); }
+
+    /* ── Audit History View ──────────────────────────────────────────────────── */
+    .audit-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .audit-filters {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .search-input {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 7px 12px;
+      font-size: 12.5px;
+      color: var(--text-main);
+      width: 240px;
+    }
+
+    .search-input:focus {
+      border-color: var(--teal-500);
+      outline: none;
+    }
+
+    .select-dropdown {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 7px 12px;
+      font-size: 12px;
+      color: var(--text-main);
+      cursor: pointer;
+    }
+
+    .select-dropdown:focus {
+      border-color: var(--teal-500);
+      outline: none;
+    }
+
+    /* ── Settings / Policy Rules View ────────────────────────────────────────── */
+    .policy-rules-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .policy-rules-grid { grid-template-columns: 1fr; }
+    }
+
+    .rule-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .rule-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .rule-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .rule-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    .rule-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .rule-tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+    }
+
+    /* ── Approval Modal Overlay ──────────────────────────────────────────────── */
+    #approval-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    #approval-overlay.visible {
+      display: flex;
+    }
+
+    .approval-modal {
+      background: var(--bg-surface);
+      border: 2px solid var(--amber-500);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 520px;
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      animation: modal-enter 0.15s ease-out;
+    }
+
+    @keyframes modal-enter {
+      from { transform: scale(0.96); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .approval-modal-header {
+      background: rgba(245, 158, 11, 0.1);
+      border-bottom: 1px solid var(--amber-border);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .approval-modal-header svg {
+      width: 22px;
+      height: 22px;
+      color: var(--amber-400);
+      flex-shrink: 0;
+    }
+
+    .approval-modal-title {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: var(--amber-400);
+    }
+
+    .approval-modal-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .approval-detail-row {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 10px;
+      font-size: 12.5px;
+    }
+
+    .approval-detail-key {
+      color: var(--text-faint);
+      font-weight: 600;
+    }
+
+    .approval-detail-val {
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      word-break: break-all;
+    }
+
+    .approval-timer-bar-wrap {
+      height: 4px;
+      background: var(--bg-subtle);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      margin-top: 6px;
+    }
+
+    .approval-timer-bar {
+      height: 100%;
+      background: var(--amber-500);
+      width: 100%;
+      transition: width 1s linear;
+    }
+
+    .approval-modal-footer {
+      padding: 14px 20px;
+      background: var(--bg-elevated);
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* ── Spinners & Utilities ────────────────────────────────────────────────── */
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-top-color: currentColor;
+      border-radius: var(--radius-full);
+      animation: spin 0.7s linear infinite;
+      display: inline-block;
+    }
+
+    .text-mono { font-family: var(--font-mono); }
+    .text-muted { color: var(--text-muted); }
+    .text-faint { color: var(--text-faint); }
   </style>
 </head>
 <body>
-<div id="app">
-  <!-- Header -->
-  <header>
-    <div class="logo">
-      <div class="logo-icon">🔒</div>
-      <span>Privix</span>
-      <span class="badge">Privacy Gateway</span>
+
+<div id="app-container">
+  <!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
+  <aside id="sidebar">
+    <div>
+      <div class="sidebar-brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>Privix <span class="version-tag">MVP</span></h1>
+          <p>Privacy-First AI Agent</p>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-label">Navigation</div>
+        <button class="nav-btn active" data-view="workspace" onclick="switchView('workspace')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+            <line x1="8" y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+          Agent Workspace
+        </button>
+
+        <button class="nav-btn" data-view="privacy" onclick="switchView('privacy')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+          Privacy Center
+        </button>
+
+        <button class="nav-btn" data-view="audit" onclick="switchView('audit')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+          Audit History
+        </button>
+
+        <button class="nav-btn" data-view="settings" onclick="switchView('settings')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" y1="21" x2="4" y2="14"/>
+            <line x1="4" y1="10" x2="4" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12" y2="3"/>
+            <line x1="20" y1="21" x2="20" y2="16"/>
+            <line x1="20" y1="12" x2="20" y2="3"/>
+            <line x1="1" y1="14" x2="7" y2="14"/>
+            <line x1="9" y1="8" x2="15" y2="8"/>
+            <line x1="17" y1="16" x2="23" y2="16"/>
+          </svg>
+          Policies & Rules
+        </button>
+      </nav>
     </div>
-    <div style="display:flex;align-items:center;gap:6px;">
-      <span id="status-dot"></span>
-      <span id="status-text">Checking Ollama...</span>
-    </div>
-  </header>
 
-  <main>
-    <!-- Sidebar -->
-    <aside>
-      <div>
-        <div class="section-title">Select Demo Mode</div>
-        <div class="mode-grid">
-          <button class="mode-btn active" data-mode="safe" onclick="selectMode('safe', this)">
-            <span class="mode-icon">🌐</span>
-            Safe Browse
-            <span class="mode-label">example.com summary</span>
-          </button>
-          <button class="mode-btn" data-mode="privacy" onclick="selectMode('privacy', this)">
-            <span class="mode-icon">🛡️</span>
-            Privacy Demo
-            <span class="mode-label">Intercept sensitive form</span>
-          </button>
-          <button class="mode-btn" data-mode="custom" onclick="selectMode('custom', this)" style="grid-column:1/-1">
-            <span class="mode-icon">✏️</span>
-            Custom Task
-            <span class="mode-label">Enter your own prompt</span>
-          </button>
+    <div class="sidebar-footer">
+      <div class="system-status-card">
+        <div class="status-row">
+          <span class="status-indicator">
+            <span class="dot" id="ollama-status-dot"></span>
+            <span id="ollama-status-text">Ollama Checking...</span>
+          </span>
+          <span class="model-badge" id="ollama-model-name">qwen2.5:3b</span>
+        </div>
+        <div class="status-row">
+          <span class="text-faint" style="font-size:10.5px;">Local Hardware:</span>
+          <span class="text-muted text-mono" style="font-size:10.5px;">RTX 3050 · 100% GPU</span>
         </div>
       </div>
 
-      <div id="custom-task-wrap" class="custom-task-wrap">
-        <div class="section-title">Custom Task Prompt</div>
-        <textarea id="custom-task" placeholder="e.g. Open https://wikipedia.org and summarize the featured article title."></textarea>
-      </div>
-
-      <!-- State -->
-      <div class="state-bar">
-        <div class="state-label">Current State</div>
-        <div id="state-value" class="state-value queued">Idle</div>
-        <div id="state-msg" style="font-size:12px;color:var(--muted);margin-top:4px;"></div>
-      </div>
-
-      <!-- Approval Card -->
-      <div id="approval-card">
-        <div class="appr-title">⚠️ Approval Required</div>
-        <div class="appr-row"><span class="appr-key">Action</span><span class="appr-val" id="appr-action"></span></div>
-        <div class="appr-row"><span class="appr-key">Destination</span><span class="appr-val" id="appr-dest"></span></div>
-        <div class="appr-row"><span class="appr-key">Reason</span><span class="appr-val" id="appr-reason"></span></div>
-        <div class="appr-row"><span class="appr-key">Risk</span><span class="appr-val"><span class="appr-risk" id="appr-risk"></span></span></div>
-        <div class="appr-btns">
-          <button class="appr-btn deny" onclick="sendApproval(false)">✕ Deny</button>
-          <button class="appr-btn allow" onclick="sendApproval(true)">✓ Allow</button>
-        </div>
-      </div>
-
-      <!-- Run button -->
-      <button class="run-btn" id="run-btn" onclick="runTask()">
-        <span id="run-spinner" class="spinner" style="display:none"></span>
-        <span id="run-label">▶ Run Demo</span>
-      </button>
-
-      <!-- Mock server status (shown for privacy mode) -->
-      <div id="mock-section" style="display:none">
-        <div class="section-title">Mock Server</div>
-        <div class="mock-status">
-          <div class="mock-row">
-            <span style="color:var(--muted)">Submissions</span>
-            <span class="mock-val zero" id="mock-subs">0</span>
-          </div>
-          <div class="mock-row">
-            <span style="color:var(--muted)">Portal</span>
-            <a id="mock-link" href="#" target="_blank">Open</a>
-          </div>
-          <div style="margin-top:8px;">
-            <button onclick="resetMock()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;">Reset Counter</button>
-          </div>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Main Content -->
-    <div class="content">
-      <div class="tabs">
-        <div class="tab active" onclick="switchTab('result', this)">Result</div>
-        <div class="tab" onclick="switchTab('log', this)">Live Log <span class="tab-badge" id="log-count">0</span></div>
-        <div class="tab" onclick="switchTab('audit', this)">Audit Log <span class="tab-badge" id="audit-count">0</span></div>
-      </div>
-      <div class="panels">
-        <!-- Result Panel -->
-        <div class="panel active" id="panel-result">
-          <div class="meta-row" id="result-meta" style="display:none">
-            <span class="meta-chip" id="meta-status-chip">Completed</span>
-            <span style="font-size:12px;color:var(--muted)" id="meta-time"></span>
-            <span style="font-size:12px;color:var(--muted)" id="meta-subs"></span>
-          </div>
-          <div class="result-box" id="result-box">
-            Run a demo mode to see the agent result here.
-          </div>
-        </div>
-
-        <!-- Log Panel -->
-        <div class="panel" id="panel-log">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-            <span style="color:var(--muted);font-size:12px;">Real-time execution log</span>
-            <button onclick="clearLog()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;">Clear</button>
-          </div>
-          <div id="log-list">
-            <div class="empty-state">No log entries yet. Start a demo to see real-time progress.</div>
-          </div>
-        </div>
-
-        <!-- Audit Panel -->
-        <div class="panel" id="panel-audit">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-            <span style="color:var(--muted);font-size:12px;">Policy engine decisions — auto-redacted</span>
-            <button onclick="fetchAudit()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;">Refresh</button>
-          </div>
-          <div id="audit-container">
-            <div class="empty-state">No audit entries yet.</div>
-          </div>
-        </div>
+      <div style="font-size: 10.5px; color: var(--text-faint); text-align: center;">
+        Privix Fail-Closed Architecture · Zero Cloud
       </div>
     </div>
+  </aside>
+
+  <!-- ── Main Workspace ─────────────────────────────────────────────────────── -->
+  <main id="main-content">
+    <header id="topbar">
+      <div class="topbar-left">
+        <div class="breadcrumb-title">
+          <span>Privix</span>
+          <span class="breadcrumb-sep">/</span>
+          <span id="view-title" style="color: var(--teal-300);">Agent Workspace</span>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <span class="security-status-pill">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Deterministic Gateway Active
+        </span>
+        <span class="demo-mode-pill" id="active-mode-pill">
+          Safe Browse Mode
+        </span>
+      </div>
+    </header>
+
+    <!-- ── View 1: Workspace ────────────────────────────────────────────────── -->
+    <section class="view-panel active" id="view-workspace">
+      <div class="workspace-grid">
+        <!-- Task Composer Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 15-6-6-6 6"/></svg>
+              Task Composer & Policy Enforcement
+            </div>
+          </div>
+
+          <div class="mode-selector">
+            <div class="mode-tab active" id="mode-tab-safe" onclick="selectMode('safe')">
+              <div class="mode-tab-title">
+                <span>Safe Browse</span>
+                <span class="chip ALLOW" style="font-size:9px;">Allow</span>
+              </div>
+              <div class="mode-tab-desc">Browse example.com and verify visible text summary without actions</div>
+            </div>
+
+            <div class="mode-tab" id="mode-tab-privacy" onclick="selectMode('privacy')">
+              <div class="mode-tab-title">
+                <span>Privacy Interception Demo</span>
+                <span class="chip REQUIRE_APPROVAL" style="font-size:9px;">Approval</span>
+              </div>
+              <div class="mode-tab-desc">Intercept sensitive patient data form submission before DOM dispatch</div>
+            </div>
+
+            <div class="mode-tab" id="mode-tab-custom" onclick="selectMode('custom')">
+              <div class="mode-tab-title">
+                <span>Custom Task</span>
+                <span class="chip" style="font-size:9px; background:var(--bg-elevated); color:var(--text-muted);">Custom</span>
+              </div>
+              <div class="mode-tab-desc">Define a custom prompt for local browser-use evaluation</div>
+            </div>
+          </div>
+
+          <!-- Suggested tasks -->
+          <div class="task-suggestions">
+            <span class="suggestion-label">Quick Suggest:</span>
+            <button class="chip-btn" onclick="applySuggestion('example')">Example.com Title & Summary</button>
+            <button class="chip-btn" onclick="applySuggestion('medical')">Synthetic Patient Form Interception</button>
+            <button class="chip-btn" onclick="applySuggestion('wikipedia')">Wikipedia Summary (Read Only)</button>
+          </div>
+
+          <!-- Composer input -->
+          <div class="composer-input-wrap">
+            <textarea id="task-prompt-input" placeholder="Task prompt instructions..."></textarea>
+          </div>
+
+          <!-- Actions -->
+          <div class="composer-actions">
+            <div class="actions-left">
+              <button class="btn btn-primary" id="btn-run" onclick="startExecution()">
+                <svg id="btn-run-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span id="btn-run-spinner" class="spinner" style="display:none;"></span>
+                <span id="btn-run-label">Run Task</span>
+              </button>
+
+              <button class="btn btn-danger" id="btn-cancel" onclick="cancelExecution()" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                <span>Cancel</span>
+              </button>
+
+              <button class="btn btn-secondary" id="btn-retry" onclick="retryLastExecution()" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                <span>Retry</span>
+              </button>
+            </div>
+
+            <div class="actions-right">
+              <button class="btn btn-secondary" onclick="resetMockState()" title="Reset mock server submission count">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 2v6h6"/><path d="M21 12A9 9 0 0 0 6 5.3L3 8"/></svg>
+                <span>Reset Demo State</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Real-Time State Monitor -->
+        <div class="status-monitor-card">
+          <div>
+            <span class="state-badge idle" id="task-state-badge">IDLE</span>
+          </div>
+
+          <div class="monitor-target-url">
+            <span>Target:</span>
+            <span id="monitor-target-text">https://example.com</span>
+          </div>
+
+          <div class="monitor-timer">
+            <span class="text-faint">Elapsed: </span>
+            <span id="monitor-timer-val">0.0s</span>
+          </div>
+
+          <div>
+            <span class="submissions-counter-badge safe" id="mock-counter-badge">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <span id="mock-submissions-text">0 Submissions (Protected)</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- Split View: Execution Timeline & Result Output -->
+        <div class="workspace-split">
+          <!-- Timeline & Logs -->
+          <div class="card timeline-card">
+            <div class="card-header">
+              <div class="card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                Execution Timeline
+                <span class="version-tag" id="log-count-pill" style="font-size:10px;">0 events</span>
+              </div>
+
+              <div class="timeline-header-actions">
+                <button class="chip-btn" onclick="clearLiveLogs()">Clear</button>
+              </div>
+            </div>
+
+            <div class="log-viewport" id="log-viewport">
+              <div class="result-empty" id="log-empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span>No active events. Start a task to observe real-time telemetry.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Result Output -->
+          <div class="card result-card">
+            <div class="card-header">
+              <div class="card-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Task Result & Verification
+              </div>
+
+              <div>
+                <button class="btn btn-secondary" id="btn-copy-result" onclick="copyResultText()" style="padding:4px 10px; font-size:11.5px;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span id="btn-copy-label">Copy Result</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="result-viewport" id="result-viewport">
+              <div class="result-empty" id="result-empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="11" y2="17"/></svg>
+                <span>Agent output will appear here following evaluation and execution.</span>
+              </div>
+              <div id="result-text-content" style="display:none;"></div>
+
+              <div class="result-meta-row" id="result-meta-row" style="display:none;">
+                <span id="result-status-text">Status: Completed</span>
+                <span id="result-duration-text">Duration: 0.0s</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── View 2: Privacy Center ───────────────────────────────────────────── -->
+    <section class="view-panel" id="view-privacy">
+      <div class="workspace-grid">
+        <!-- KPI Metrics Row -->
+        <div class="kpi-row">
+          <div class="kpi-card">
+            <span class="kpi-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+              Total Actions Evaluated
+            </span>
+            <span class="kpi-value teal" id="kpi-total-evaluated">0</span>
+            <span class="kpi-subtext">Pre-execution deterministic inspections</span>
+          </div>
+
+          <div class="kpi-card">
+            <span class="kpi-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+              Permitted Actions
+            </span>
+            <span class="kpi-value green" id="kpi-allowed-count">0</span>
+            <span class="kpi-subtext">Safe reads & authorized navigations</span>
+          </div>
+
+          <div class="kpi-card">
+            <span class="kpi-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              High-Risk Interceptions
+            </span>
+            <span class="kpi-value amber" id="kpi-approval-count">0</span>
+            <span class="kpi-subtext">Held for explicit cryptographic review</span>
+          </div>
+
+          <div class="kpi-card">
+            <span class="kpi-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+              Leakage Blocked
+            </span>
+            <span class="kpi-value red" id="kpi-blocked-count">0</span>
+            <span class="kpi-subtext">Sensitive data / unclassified denied</span>
+          </div>
+        </div>
+
+        <!-- Deterministic Flow Pipeline -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              Pre-Execution Mediation Pipeline
+            </div>
+            <span class="chip ALLOW">Deterministic Fail-Closed</span>
+          </div>
+
+          <div class="pipeline-diagram">
+            <div class="pipeline-node">
+              <span class="pipeline-node-title">1. LLM Proposes Action</span>
+              <span class="pipeline-node-desc">Tool action from qwen2.5:3b</span>
+            </div>
+            <span class="pipeline-arrow">➔</span>
+            <div class="pipeline-node" style="border-color:var(--teal-500); background:var(--teal-bg);">
+              <span class="pipeline-node-title" style="color:var(--teal-300);">2. Privix Gateway</span>
+              <span class="pipeline-node-desc">Tools.act() pre-execution hook</span>
+            </div>
+            <span class="pipeline-arrow">➔</span>
+            <div class="pipeline-node">
+              <span class="pipeline-node-title">3. Policy Evaluation</span>
+              <span class="pipeline-node-desc">ALLOW / BLOCK / APPROVAL</span>
+            </div>
+            <span class="pipeline-arrow">➔</span>
+            <div class="pipeline-node">
+              <span class="pipeline-node-title">4. Audit & Token Redaction</span>
+              <span class="pipeline-node-desc">SHA-256 bound token</span>
+            </div>
+            <span class="pipeline-arrow">➔</span>
+            <div class="pipeline-node">
+              <span class="pipeline-node-title">5. DOM Execution</span>
+              <span class="pipeline-node-desc">Playwright / Browser Dispatch</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Interceptions Table -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Recent Security & Privacy Decisions
+            </div>
+            <button class="chip-btn" onclick="fetchAuditHistory()">Refresh Data</button>
+          </div>
+
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Action Type</th>
+                  <th>Decision</th>
+                  <th>Risk Tier</th>
+                  <th>Target Destination</th>
+                  <th>Evaluation Reason</th>
+                  <th>Review Status</th>
+                </tr>
+              </thead>
+              <tbody id="privacy-recent-tbody">
+                <tr>
+                  <td colspan="7" style="text-align:center; color:var(--text-faint); padding:24px;">
+                    No security events logged in this session yet.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── View 3: Audit History ────────────────────────────────────────────── -->
+    <section class="view-panel" id="view-audit">
+      <div class="workspace-grid">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Comprehensive Audit Ledger
+            </div>
+
+            <div>
+              <button class="btn btn-secondary" onclick="exportAuditJson()" style="padding:6px 12px; font-size:12px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Export JSON</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Filters -->
+          <div class="audit-controls">
+            <div class="audit-filters">
+              <input type="text" class="search-input" id="audit-search-input" placeholder="Search by action, URL, or reason..." oninput="applyAuditFilters()" />
+
+              <select class="select-dropdown" id="audit-filter-decision" onchange="applyAuditFilters()">
+                <option value="ALL">All Decisions</option>
+                <option value="ALLOW">ALLOW</option>
+                <option value="BLOCK">BLOCK</option>
+                <option value="REQUIRE_APPROVAL">REQUIRE_APPROVAL</option>
+              </select>
+
+              <select class="select-dropdown" id="audit-filter-risk" onchange="applyAuditFilters()">
+                <option value="ALL">All Risk Levels</option>
+                <option value="LOW">LOW</option>
+                <option value="MEDIUM">MEDIUM</option>
+                <option value="HIGH">HIGH</option>
+                <option value="CRITICAL">CRITICAL</option>
+              </select>
+            </div>
+
+            <div>
+              <button class="chip-btn" onclick="fetchAuditHistory()">Refresh Ledger</button>
+            </div>
+          </div>
+
+          <!-- Audit Table -->
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Time (UTC)</th>
+                  <th>Action</th>
+                  <th>Decision</th>
+                  <th>Risk</th>
+                  <th>Destination</th>
+                  <th>Deterministic Reason</th>
+                  <th>Human Review</th>
+                </tr>
+              </thead>
+              <tbody id="audit-ledger-tbody">
+                <tr>
+                  <td colspan="7" style="text-align:center; color:var(--text-faint); padding:24px;">
+                    No audit records match the current criteria.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── View 4: Policies & Architecture ─────────────────────────────────── -->
+    <section class="view-panel" id="view-settings">
+      <div class="workspace-grid">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              Deterministic Policy Ruleset (Fail-Closed)
+            </div>
+            <span class="chip ALLOW">Server-Enforced</span>
+          </div>
+
+          <p style="font-size:12.5px; color:var(--text-muted); margin-bottom:16px;">
+            The Privix Gateway intercepts all 24 browser-use tool actions via an overridden <code>Tools.act()</code> hook before actions can reach the Playwright DOM or network. Policies are deterministic and run locally without cloud dependency.
+          </p>
+
+          <div class="policy-rules-grid">
+            <div class="rule-card">
+              <div class="rule-header">
+                <span class="rule-title">Public Web Navigation</span>
+                <span class="chip ALLOW">ALLOW</span>
+              </div>
+              <p class="rule-desc">Standard HTTP and HTTPS scheme navigations to public endpoints are permitted without interception.</p>
+              <div class="rule-tags">
+                <span class="rule-tag">navigate</span>
+                <span class="rule-tag">search</span>
+                <span class="rule-tag">go_back</span>
+                <span class="rule-tag">http://</span>
+                <span class="rule-tag">https://</span>
+              </div>
+            </div>
+
+            <div class="rule-card">
+              <div class="rule-header">
+                <span class="rule-title">Sensitive Form Submission</span>
+                <span class="chip REQUIRE_APPROVAL">REQUIRE APPROVAL</span>
+              </div>
+              <p class="rule-desc">Submitting form data or clicking form submission triggers requires explicit human verification via cryptographic token.</p>
+              <div class="rule-tags">
+                <span class="rule-tag">click [submit]</span>
+                <span class="rule-tag">submit_form</span>
+                <span class="rule-tag">btn-submit</span>
+              </div>
+            </div>
+
+            <div class="rule-card">
+              <div class="rule-header">
+                <span class="rule-title">Sensitive Data Transmission</span>
+                <span class="chip BLOCK">BLOCK</span>
+              </div>
+              <p class="rule-desc">Payloads containing detected SSNs, credit cards, credentials, API keys, or healthcare diagnosis keywords are blocked from transmission.</p>
+              <div class="rule-tags">
+                <span class="rule-tag">input</span>
+                <span class="rule-tag">send_keys</span>
+                <span class="rule-tag">SSN: \d{3}-\d{2}-\d{4}</span>
+                <span class="rule-tag">PCI-DSS</span>
+              </div>
+            </div>
+
+            <div class="rule-card">
+              <div class="rule-header">
+                <span class="rule-title">Destructive Element Interaction</span>
+                <span class="chip REQUIRE_APPROVAL">REQUIRE APPROVAL</span>
+              </div>
+              <p class="rule-desc">Clicking buttons or typing commands containing destructive terms (delete, drop table, rm -rf, purge) requires human review.</p>
+              <div class="rule-tags">
+                <span class="rule-tag">delete</span>
+                <span class="rule-tag">destroy</span>
+                <span class="rule-tag">purge</span>
+                <span class="rule-tag">drop table</span>
+              </div>
+            </div>
+
+            <div class="rule-card">
+              <div class="rule-header">
+                <span class="rule-title">In-Browser Script Execution</span>
+                <span class="chip REQUIRE_APPROVAL">CRITICAL RISK</span>
+              </div>
+              <p class="rule-desc">Arbitrary JavaScript execution via the <code>evaluate</code> action is classified as critical risk and held for approval.</p>
+              <div class="rule-tags">
+                <span class="rule-tag">evaluate</span>
+                <span class="rule-tag">document.write</span>
+                <span class="rule-tag">eval()</span>
+              </div>
+            </div>
+
+            <div class="rule-card">
+              <div class="rule-header">
+                <span class="rule-title">Unknown / Unclassified Actions</span>
+                <span class="chip BLOCK">FAIL-CLOSED</span>
+              </div>
+              <p class="rule-desc">Any unrecognized browser action defaults strictly to BLOCK. Security is never compromised for convenience.</p>
+              <div class="rule-tags">
+                <span class="rule-tag">default-deny</span>
+                <span class="rule-tag">fail-closed</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Infrastructure & Environment -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+              Execution Environment Details
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:14px; font-size:12px;">
+            <div class="rule-card">
+              <span class="text-faint">Language Model:</span>
+              <span class="text-mono" style="font-weight:600; color:var(--teal-300);">Ollama / qwen2.5:3b</span>
+              <span class="text-muted">100% GPU Offload (2.4 GB VRAM)</span>
+            </div>
+
+            <div class="rule-card">
+              <span class="text-faint">Automation Runtime:</span>
+              <span class="text-mono" style="font-weight:600; color:var(--teal-300);">browser-use 0.13.14</span>
+              <span class="text-muted">Playwright Chromium / CDP</span>
+            </div>
+
+            <div class="rule-card">
+              <span class="text-faint">Synthetic Test Server:</span>
+              <span class="text-mono" style="font-weight:600; color:var(--teal-300);">127.0.0.1:8765</span>
+              <span class="text-muted">Local synthetic healthcare portal</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 </div>
 
+<!-- ── Human-in-the-Loop Approval Modal ────────────────────────────────────── -->
+<div id="approval-overlay" role="dialog" aria-modal="true" aria-labelledby="approval-modal-heading">
+  <div class="approval-modal">
+    <div class="approval-modal-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div>
+        <div class="approval-modal-title" id="approval-modal-heading">Security Approval Required</div>
+        <div style="font-size:11px; color:var(--text-muted);">Action intercepted by Privix Privacy Gateway prior to DOM dispatch</div>
+      </div>
+    </div>
+
+    <div class="approval-modal-body">
+      <div class="approval-detail-row">
+        <span class="approval-detail-key">Action Type:</span>
+        <span class="approval-detail-val" id="modal-action-type">click_element</span>
+      </div>
+
+      <div class="approval-detail-row">
+        <span class="approval-detail-key">Destination:</span>
+        <span class="approval-detail-val" id="modal-destination">http://127.0.0.1:8765/submit-external</span>
+      </div>
+
+      <div class="approval-detail-row">
+        <span class="approval-detail-key">Policy Trigger:</span>
+        <span class="approval-detail-val" id="modal-reason" style="color:var(--amber-400);">Clicking submission trigger</span>
+      </div>
+
+      <div class="approval-detail-row">
+        <span class="approval-detail-key">Risk Level:</span>
+        <span class="approval-detail-val">
+          <span class="chip risk-HIGH" id="modal-risk-badge">HIGH</span>
+        </span>
+      </div>
+
+      <div class="approval-detail-row" id="modal-element-row" style="display:none;">
+        <span class="approval-detail-key">Element Info:</span>
+        <span class="approval-detail-val" id="modal-element-info">button#btn-submit-sensitive</span>
+      </div>
+
+      <div>
+        <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-faint);">
+          <span>Auto-Deny countdown:</span>
+          <span id="modal-timer-text">120s remaining</span>
+        </div>
+        <div class="approval-timer-bar-wrap">
+          <div class="approval-timer-bar" id="modal-timer-bar"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="approval-modal-footer">
+      <button class="btn btn-danger" id="btn-modal-deny" onclick="resolveApproval(false)">
+        ✕ Deny Action (Safe)
+      </button>
+
+      <button class="btn btn-primary" id="btn-modal-allow" onclick="resolveApproval(true)">
+        ✓ Authorize Once
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Application Logic ───────────────────────────────────────────────────── -->
 <script>
-// ── State ─────────────────────────────────────────────────────────────────────
-let currentMode = 'safe';
-let currentTaskId = null;
-let ws = null;
-let pendingApprovalTaskId = null;
-let logEntries = [];
-let auditEntries = [];
-let isRunning = false;
-
-// ── Init ──────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  checkStatus();
-  setInterval(checkStatus, 15000);
-});
-
-async function checkStatus() {
-  try {
-    const r = await fetch('/api/status');
-    const d = await r.json();
-    const dot = document.getElementById('status-dot');
-    const txt = document.getElementById('status-text');
-    if (d.ollama) {
-      dot.className = 'ok';
-      txt.textContent = `Ollama ready · ${d.ollama_model}`;
-    } else {
-      dot.className = '';
-      txt.textContent = 'Ollama offline — start with: ollama serve';
-    }
-  } catch {
-    document.getElementById('status-text').textContent = 'Server unreachable';
-  }
-}
-
-// ── Mode selection ────────────────────────────────────────────────────────────
-function selectMode(mode, btn) {
-  currentMode = mode;
-  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  const wrap = document.getElementById('custom-task-wrap');
-  const mockSection = document.getElementById('mock-section');
-  wrap.classList.toggle('visible', mode === 'custom');
-  mockSection.style.display = mode === 'privacy' ? 'block' : 'none';
-  if (mode === 'privacy') fetchMockStatus();
-}
-
-// ── Tab switching ─────────────────────────────────────────────────────────────
-function switchTab(name, tab) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  tab.classList.add('active');
-  document.getElementById(`panel-${name}`).classList.add('active');
-}
-
-// ── Task execution ────────────────────────────────────────────────────────────
-async function runTask() {
-  if (isRunning) return;
-  isRunning = true;
-
-  // Reset UI
-  resetUIForNewRun();
-
-  const body = { mode: currentMode };
-  if (currentMode === 'custom') {
-    const t = document.getElementById('custom-task').value.trim();
-    if (!t) { alert('Please enter a task prompt.'); isRunning = false; return; }
-    body.task = t;
-  }
-
-  setRunning(true);
-  addLog('state', `Starting demo: mode=${currentMode}`);
-
-  try {
-    const r = await fetch('/api/run', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const d = await r.json();
-    if (d.error) { addLog('error', d.error); setRunning(false); isRunning = false; return; }
-    currentTaskId = d.task_id;
-    connectWebSocket(currentTaskId);
-  } catch (e) {
-    addLog('error', `Failed to start task: ${e}`);
-    setRunning(false);
-    isRunning = false;
-  }
-}
-
-function resetUIForNewRun() {
-  logEntries = [];
-  auditEntries = [];
-  document.getElementById('log-list').innerHTML = '';
-  document.getElementById('result-box').className = 'result-box';
-  document.getElementById('result-box').textContent = 'Running…';
-  document.getElementById('result-meta').style.display = 'none';
-  document.getElementById('audit-container').innerHTML = '<div class="empty-state">Waiting for audit entries…</div>';
-  document.getElementById('log-count').textContent = '0';
-  document.getElementById('audit-count').textContent = '0';
-  hideApprovalCard();
-  setState('queued', 'Preparing task…');
-  if (currentMode === 'privacy') fetchMockStatus();
-}
-
-// ── WebSocket ─────────────────────────────────────────────────────────────────
-function connectWebSocket(taskId) {
-  if (ws) { try { ws.close(); } catch {} }
-  ws = new WebSocket(`ws://${location.host}/ws/${taskId}`);
-  ws.onmessage = (ev) => handleEvent(JSON.parse(ev.data));
-  ws.onerror = () => addLog('error', 'WebSocket connection error.');
-  ws.onclose = () => {
-    // If task still "running", mark failed
-    const sv = document.getElementById('state-value');
-    if (sv && sv.textContent === 'Running') {
-      addLog('error', 'Connection to server lost.');
-    }
+(() => {
+  // ── State ─────────────────────────────────────────────────────────────────
+  const state = {
+    currentView: 'workspace',
+    currentMode: 'safe',
+    currentTaskId: null,
+    isRunning: false,
+    ws: null,
+    wsReconnectAttempts: 0,
+    startTime: 0,
+    timerInterval: null,
+    approvalTimerInterval: null,
+    approvalSecondsLeft: 120,
+    pendingApprovalTaskId: null,
+    lastCompletedPrompt: '',
+    
+    // Telemetry & Data
+    logs: [],
+    auditEntries: [],
+    submissionsCount: 0,
+    ollamaOnline: false,
   };
-}
 
-function handleEvent(evt) {
-  const { type } = evt;
-  if (type === 'ping') return;
+  const PROMPT_PRESETS = {
+    safe: "The browser is open at https://example.com. Read the page title and visible text from the page state, and immediately call the done action reporting the title and a short summary. Do not navigate, reload, click links, or submit forms.",
+    privacy: "The browser is open at http://127.0.0.1:8765/portal.html. Click element index 0 to submit the sensitive patient record form.",
+    custom: "Open https://wikipedia.org and summarize the featured article title. Return the title and first paragraph."
+  };
 
-  switch (type) {
-    case 'state':
-      setState(evt.state, evt.message);
-      addLog('state', `[${evt.state.toUpperCase()}] ${evt.message || ''}`);
-      if (['completed', 'failed', 'blocked', 'cancelled'].includes(evt.state)) {
-        setRunning(false);
-        isRunning = false;
+  // ── Init ──────────────────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    initUI();
+    checkOllamaStatus();
+    fetchMockStatus();
+    fetchAuditHistory();
+
+    // Poll status periodically
+    setInterval(checkOllamaStatus, 12000);
+    setInterval(fetchMockStatus, 10000);
+
+    // Keyboard navigation for approval modal
+    document.addEventListener('keydown', (e) => {
+      if (state.pendingApprovalTaskId && document.getElementById('approval-overlay').classList.contains('visible')) {
+        if (e.key === 'Escape') {
+          resolveApproval(false);
+        }
       }
-      break;
-
-    case 'log':
-      addLog('log', evt.message);
-      break;
-
-    case 'result':
-      showResult(evt.result, evt.elapsed, evt.submissions);
-      break;
-
-    case 'audit':
-      if (evt.entries) { auditEntries = evt.entries; renderAuditTable(); }
-      break;
-
-    case 'approval_required':
-      pendingApprovalTaskId = evt.task_id;
-      showApprovalCard(evt);
-      addLog('approval', `Approval required: ${evt.action_type} → ${evt.destination || '(current page)'}`);
-      break;
-
-    case 'approved':
-      hideApprovalCard();
-      addLog('approved', `Action '${evt.action_type}' was ALLOWED`);
-      break;
-
-    case 'denied':
-      hideApprovalCard();
-      addLog('denied', `Action '${evt.action_type}' was DENIED — ${evt.reason || ''}`);
-      break;
-
-    case 'mock_status':
-      updateMockStatus(evt.submissions, evt.portal_url);
-      break;
-
-    case 'error':
-      showResultError(evt.error);
-      addLog('error', `Error: ${evt.error}`);
-      setRunning(false);
-      isRunning = false;
-      break;
-  }
-}
-
-// ── UI helpers ────────────────────────────────────────────────────────────────
-function setRunning(on) {
-  document.getElementById('run-btn').disabled = on;
-  document.getElementById('run-spinner').style.display = on ? 'inline-block' : 'none';
-  document.getElementById('run-label').textContent = on ? 'Running…' : '▶ Run Demo';
-}
-
-function setState(state, msg) {
-  const el = document.getElementById('state-value');
-  el.className = `state-value ${state}`;
-  const labels = {
-    queued: 'Queued', running: 'Running', navigating: 'Navigating',
-    waiting_for_approval: 'Waiting — Approval Required',
-    completed: 'Completed', failed: 'Failed', blocked: 'Blocked',
-    cancelled: 'Cancelled',
-  };
-  el.textContent = labels[state] || state;
-  const msgEl = document.getElementById('state-msg');
-  if (msgEl) msgEl.textContent = msg || '';
-}
-
-function showResult(text, elapsed, submissions) {
-  const box = document.getElementById('result-box');
-  box.className = 'result-box success';
-  box.textContent = text;
-
-  const meta = document.getElementById('result-meta');
-  meta.style.display = 'flex';
-  document.getElementById('meta-status-chip').className = 'meta-chip green';
-  document.getElementById('meta-status-chip').textContent = 'Completed';
-  document.getElementById('meta-time').textContent = elapsed ? `${elapsed.toFixed(1)}s` : '';
-  if (submissions !== undefined) {
-    const subsEl = document.getElementById('meta-subs');
-    subsEl.textContent = `Submissions to server: ${submissions}`;
-    subsEl.style.color = submissions === 0 ? 'var(--green)' : 'var(--red)';
-  }
-}
-
-function showResultError(msg) {
-  const box = document.getElementById('result-box');
-  box.className = 'result-box error';
-  box.textContent = `Error: ${msg}`;
-  const meta = document.getElementById('result-meta');
-  meta.style.display = 'flex';
-  document.getElementById('meta-status-chip').className = 'meta-chip red';
-  document.getElementById('meta-status-chip').textContent = 'Failed';
-}
-
-// ── Log ───────────────────────────────────────────────────────────────────────
-function addLog(cls, msg) {
-  const list = document.getElementById('log-list');
-  if (list.children.length === 1 && list.children[0].classList.contains('empty-state')) {
-    list.innerHTML = '';
-  }
-  const t = new Date().toLocaleTimeString('en', { hour12: false });
-  const entry = document.createElement('div');
-  entry.className = `log-entry ${cls}`;
-  entry.innerHTML = `<span class="log-time">${t}</span>${escHtml(msg)}`;
-  list.appendChild(entry);
-  list.scrollTop = list.scrollHeight;
-  logEntries.push({ t, cls, msg });
-  document.getElementById('log-count').textContent = logEntries.length;
-}
-
-function clearLog() {
-  logEntries = [];
-  document.getElementById('log-list').innerHTML = '<div class="empty-state">Log cleared.</div>';
-  document.getElementById('log-count').textContent = '0';
-}
-
-// ── Audit table ───────────────────────────────────────────────────────────────
-function renderAuditTable() {
-  const container = document.getElementById('audit-container');
-  if (!auditEntries.length) {
-    container.innerHTML = '<div class="empty-state">No audit entries yet.</div>';
-    return;
-  }
-  document.getElementById('audit-count').textContent = auditEntries.length;
-  const rows = auditEntries.map(e => `
-    <tr>
-      <td style="color:var(--muted);white-space:nowrap;font-size:11px">${e.timestamp ? e.timestamp.slice(11, 19) : ''}</td>
-      <td><code style="font-size:11px;color:var(--accent2)">${escHtml(e.action_type)}</code></td>
-      <td><span class="decision-chip ${e.decision}">${e.decision}</span></td>
-      <td><span class="risk-chip ${e.risk_level}">${e.risk_level}</span></td>
-      <td style="max-width:240px;color:var(--muted);font-size:11px">${escHtml(e.reason)}</td>
-      <td style="font-size:11px;color:${e.approved ? 'var(--green)' : 'var(--red)'}">${e.approved === null ? '—' : e.approved ? 'Yes' : 'No'}</td>
-    </tr>`).join('');
-  container.innerHTML = `
-    <table class="audit-table">
-      <thead><tr>
-        <th>Time</th><th>Action</th><th>Decision</th><th>Risk</th><th>Reason</th><th>Approved</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-}
-
-async function fetchAudit() {
-  try {
-    const url = currentTaskId ? `/api/audit?task_id=${currentTaskId}` : '/api/audit';
-    const r = await fetch(url);
-    const d = await r.json();
-    auditEntries = d.entries || [];
-    renderAuditTable();
-  } catch (e) {
-    console.error('Audit fetch failed', e);
-  }
-}
-
-// ── Approval card ─────────────────────────────────────────────────────────────
-function showApprovalCard(evt) {
-  document.getElementById('appr-action').textContent = evt.action_type || '';
-  document.getElementById('appr-dest').textContent = evt.destination || '(current page)';
-  document.getElementById('appr-reason').textContent = evt.reason || '';
-  const risk = evt.risk_level || 'MEDIUM';
-  const riskEl = document.getElementById('appr-risk');
-  riskEl.textContent = risk;
-  riskEl.className = `appr-risk ${risk}`;
-  document.getElementById('approval-card').classList.add('visible');
-}
-
-function hideApprovalCard() {
-  document.getElementById('approval-card').classList.remove('visible');
-  pendingApprovalTaskId = null;
-}
-
-async function sendApproval(approved) {
-  const taskId = pendingApprovalTaskId || currentTaskId;
-  if (!taskId) return;
-  hideApprovalCard();
-  try {
-    await fetch('/api/approve', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task_id: taskId, approved }),
     });
-  } catch (e) {
-    addLog('error', `Failed to send approval: ${e}`);
+  });
+
+  function initUI() {
+    selectMode('safe');
   }
-}
 
-// ── Mock server ───────────────────────────────────────────────────────────────
-async function fetchMockStatus() {
-  try {
-    const r = await fetch('/api/mock-status');
-    const d = await r.json();
-    updateMockStatus(d.submissions, d.portal_url);
-  } catch {}
-}
+  // ── View Switching ────────────────────────────────────────────────────────
+  window.switchView = function(viewName) {
+    state.currentView = viewName;
 
-function updateMockStatus(subs, portalUrl) {
-  const el = document.getElementById('mock-subs');
-  if (el) {
-    el.textContent = subs;
-    el.className = `mock-val ${subs === 0 ? 'zero' : 'nonzero'}`;
+    // Update Nav buttons
+    document.querySelectorAll('.nav-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.view === viewName);
+    });
+
+    // Update View Panels
+    document.querySelectorAll('.view-panel').forEach(p => {
+      p.classList.toggle('active', p.id === `view-${viewName}`);
+    });
+
+    // Update Topbar Title
+    const titles = {
+      workspace: 'Agent Workspace',
+      privacy: 'Privacy Center & Interception Metrics',
+      audit: 'Audit History & Security Ledger',
+      settings: 'Policies & Architecture'
+    };
+    document.getElementById('view-title').textContent = titles[viewName] || 'Privix';
+
+    if (viewName === 'privacy' || viewName === 'audit') {
+      fetchAuditHistory();
+    }
+  };
+
+  // ── Mode Selection ────────────────────────────────────────────────────────
+  window.selectMode = function(modeName) {
+    state.currentMode = modeName;
+
+    document.querySelectorAll('.mode-tab').forEach(t => {
+      t.classList.toggle('active', t.id === `mode-tab-${modeName}`);
+    });
+
+    const promptInput = document.getElementById('task-prompt-input');
+    promptInput.value = PROMPT_PRESETS[modeName] || '';
+
+    const modeLabels = {
+      safe: 'Safe Browse Mode',
+      privacy: 'Privacy Interception Demo',
+      custom: 'Custom Task Mode'
+    };
+    document.getElementById('active-mode-pill').textContent = modeLabels[modeName] || 'Active';
+
+    const targetUrls = {
+      safe: 'https://example.com',
+      privacy: 'http://127.0.0.1:8765/portal.html',
+      custom: 'Configurable Target'
+    };
+    document.getElementById('monitor-target-text').textContent = targetUrls[modeName] || '—';
+  };
+
+  window.applySuggestion = function(type) {
+    if (type === 'example') {
+      selectMode('safe');
+    } else if (type === 'medical') {
+      selectMode('privacy');
+    } else if (type === 'wikipedia') {
+      selectMode('custom');
+      document.getElementById('task-prompt-input').value = PROMPT_PRESETS.custom;
+    }
+  };
+
+  // ── System Health & Mock Status ───────────────────────────────────────────
+  async function checkOllamaStatus() {
+    try {
+      const res = await fetch('/api/status');
+      if (!res.ok) throw new Error('Status endpoint returned non-200');
+      const data = await res.json();
+
+      const dot = document.getElementById('ollama-status-dot');
+      const text = document.getElementById('ollama-status-text');
+      const model = document.getElementById('ollama-model-name');
+
+      if (data.ollama) {
+        state.ollamaOnline = true;
+        dot.className = 'dot online';
+        text.textContent = 'Ollama Online';
+        model.textContent = data.ollama_model || 'qwen2.5:3b';
+      } else {
+        state.ollamaOnline = false;
+        dot.className = 'dot offline';
+        text.textContent = 'Ollama Offline';
+      }
+    } catch {
+      state.ollamaOnline = false;
+      const dot = document.getElementById('ollama-status-dot');
+      const text = document.getElementById('ollama-status-text');
+      if (dot) dot.className = 'dot offline';
+      if (text) text.textContent = 'Server Unreachable';
+    }
   }
-  const link = document.getElementById('mock-link');
-  if (link && portalUrl) { link.href = portalUrl; }
-}
 
-async function resetMock() {
-  await fetch('/api/reset', { method: 'POST' });
-  fetchMockStatus();
-  addLog('log', 'Mock server counter reset.');
-}
+  async function fetchMockStatus() {
+    try {
+      const res = await fetch('/api/mock-status');
+      if (!res.ok) return;
+      const data = await res.json();
+      state.submissionsCount = data.submissions || 0;
+      updateMockBadge(state.submissionsCount);
+    } catch {}
+  }
 
-// ── Util ──────────────────────────────────────────────────────────────────────
-function escHtml(str) {
-  if (!str) return '';
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+  function updateMockBadge(count) {
+    const badge = document.getElementById('mock-counter-badge');
+    const text = document.getElementById('mock-submissions-text');
+    if (!badge || !text) return;
+
+    if (count === 0) {
+      badge.className = 'submissions-counter-badge safe';
+      text.textContent = '0 Submissions (Protected)';
+    } else {
+      badge.className = 'submissions-counter-badge breach';
+      text.textContent = `${count} Leakage Submissions Detected`;
+    }
+  }
+
+  window.resetMockState = async function() {
+    try {
+      await fetch('/api/reset', { method: 'POST' });
+      appendLogItem('log', 'Mock server counter and state reset successfully.');
+      fetchMockStatus();
+    } catch (e) {
+      appendLogItem('error', `Failed to reset mock server: ${e}`);
+    }
+  };
+
+  // ── Task Execution ────────────────────────────────────────────────────────
+  window.startExecution = async function() {
+    if (state.isRunning) return;
+
+    const promptText = document.getElementById('task-prompt-input').value.trim();
+    if (!promptText) {
+      alert('Please enter a task prompt instruction.');
+      return;
+    }
+
+    // Reset Workspace UI for clean run
+    resetWorkspaceState();
+    setRunningUI(true);
+
+    state.lastCompletedPrompt = promptText;
+    state.startTime = Date.now();
+    startTimer();
+
+    appendLogItem('state', `Initializing local task execution [Mode: ${state.currentMode}]`);
+    updateTaskStateBadge('running', 'Initializing...');
+
+    try {
+      const resp = await fetch('/api/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: state.currentMode,
+          task: promptText
+        })
+      });
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        throw new Error(errData.error || `Server responded with HTTP ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      state.currentTaskId = data.task_id;
+      appendLogItem('state', `Task assigned ID: ${state.currentTaskId}. Connecting real-time telemetry...`);
+      connectWebSocket(state.currentTaskId);
+
+    } catch (err) {
+      stopTimer();
+      setRunningUI(false);
+      updateTaskStateBadge('failed', 'Launch Failed');
+      appendLogItem('error', `Execution launch error: ${err.message}`);
+      showResultText(`Failed to launch agent task:\n${err.message}`, false);
+    }
+  };
+
+  window.cancelExecution = async function() {
+    if (!state.currentTaskId) return;
+
+    appendLogItem('log', `Sending cancellation signal for task ${state.currentTaskId}...`);
+    try {
+      await fetch('/api/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: state.currentTaskId })
+      });
+      appendLogItem('state', 'Task cancellation confirmed by backend.');
+    } catch (e) {
+      appendLogItem('error', `Failed to cancel task: ${e.message}`);
+    }
+  };
+
+  window.retryLastExecution = function() {
+    if (state.lastCompletedPrompt) {
+      document.getElementById('task-prompt-input').value = state.lastCompletedPrompt;
+    }
+    startExecution();
+  };
+
+  function setRunningUI(running) {
+    state.isRunning = running;
+
+    document.getElementById('btn-run').disabled = running;
+    document.getElementById('btn-cancel').disabled = !running;
+    document.getElementById('btn-retry').disabled = running;
+    document.getElementById('task-prompt-input').disabled = running;
+
+    document.getElementById('btn-run-icon').style.display = running ? 'none' : 'inline-block';
+    document.getElementById('btn-run-spinner').style.display = running ? 'inline-block' : 'none';
+    document.getElementById('btn-run-label').textContent = running ? 'Executing...' : 'Run Task';
+  }
+
+  function resetWorkspaceState() {
+    state.logs = [];
+    const logViewport = document.getElementById('log-viewport');
+    logViewport.innerHTML = '';
+    
+    document.getElementById('log-count-pill').textContent = '0 events';
+    document.getElementById('result-empty-state').style.display = 'flex';
+    document.getElementById('result-text-content').style.display = 'none';
+    document.getElementById('result-text-content').textContent = '';
+    document.getElementById('result-meta-row').style.display = 'none';
+
+    hideApprovalModal();
+  }
+
+  function startTimer() {
+    stopTimer();
+    const timerVal = document.getElementById('monitor-timer-val');
+    state.timerInterval = setInterval(() => {
+      const elapsed = ((Date.now() - state.startTime) / 1000).toFixed(1);
+      timerVal.textContent = `${elapsed}s`;
+    }, 100);
+  }
+
+  function stopTimer() {
+    if (state.timerInterval) {
+      clearInterval(state.timerInterval);
+      state.timerInterval = null;
+    }
+  }
+
+  // ── WebSocket Telemetry ───────────────────────────────────────────────────
+  function connectWebSocket(taskId) {
+    if (state.ws) {
+      try { state.ws.close(); } catch {}
+    }
+
+    const host = window.location.host;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${host}/ws/${taskId}`;
+
+    state.ws = new WebSocket(wsUrl);
+
+    state.ws.onopen = () => {
+      state.wsReconnectAttempts = 0;
+      appendLogItem('log', 'WebSocket connection established with Gateway.');
+    };
+
+    state.ws.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        handleTelemetryEvent(payload);
+      } catch (e) {
+        console.error('Invalid WebSocket payload:', e);
+      }
+    };
+
+    state.ws.onerror = () => {
+      appendLogItem('error', 'WebSocket encountered a communication error.');
+    };
+
+    state.ws.onclose = () => {
+      if (state.isRunning) {
+        appendLogItem('log', 'WebSocket disconnected from server.');
+      }
+    };
+  }
+
+  function handleTelemetryEvent(evt) {
+    if (evt.type === 'ping') return;
+
+    switch (evt.type) {
+      case 'state':
+        updateTaskStateBadge(evt.state, evt.message);
+        appendLogItem('state', `[STATE: ${evt.state.toUpperCase()}] ${evt.message || ''}`);
+        
+        if (['completed', 'failed', 'blocked', 'cancelled'].includes(evt.state)) {
+          stopTimer();
+          setRunningUI(false);
+          document.getElementById('btn-retry').disabled = false;
+        }
+        break;
+
+      case 'log':
+        appendLogItem('log', evt.message);
+        break;
+
+      case 'result':
+        stopTimer();
+        setRunningUI(false);
+        showResultText(evt.result, true, evt.elapsed);
+        appendLogItem('log', 'Task evaluation finalized.');
+        fetchMockStatus();
+        fetchAuditHistory();
+        break;
+
+      case 'approval_required':
+        state.pendingApprovalTaskId = evt.task_id;
+        showApprovalModal(evt);
+        appendLogItem('approval', `SECURITY INTERCEPTION: Action '${evt.action_type}' held for human authorization.`);
+        updateTaskStateBadge('waiting_for_approval', 'Approval Required');
+        break;
+
+      case 'approved':
+        hideApprovalModal();
+        appendLogItem('approved', `Authorized: Action '${evt.action_type}' permitted with bound token.`);
+        break;
+
+      case 'denied':
+        hideApprovalModal();
+        appendLogItem('denied', `Rejected: Action '${evt.action_type}' denied. Action safely halted.`);
+        break;
+
+      case 'audit':
+        if (evt.entries) {
+          state.auditEntries = evt.entries;
+          renderAuditTable(evt.entries);
+          updateKPISummaries(evt.entries);
+        }
+        break;
+
+      case 'mock_status':
+        updateMockBadge(evt.submissions || 0);
+        break;
+
+      case 'error':
+        stopTimer();
+        setRunningUI(false);
+        updateTaskStateBadge('failed', 'Error Encountered');
+        appendLogItem('error', `Agent execution fault: ${evt.error}`);
+        showResultText(`Execution encountered an error:\n${evt.error}`, false);
+        break;
+    }
+  }
+
+  // ── Logging & UI Updates ──────────────────────────────────────────────────
+  function appendLogItem(type, message) {
+    if (!message) return;
+    const viewport = document.getElementById('log-viewport');
+    const emptyState = document.getElementById('log-empty-state');
+    if (emptyState) emptyState.style.display = 'none';
+
+    const now = new Date();
+    const timeStr = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0').slice(0, 2);
+
+    const item = document.createElement('div');
+    item.className = `log-item ${type}`;
+
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'log-item-time';
+    timeSpan.textContent = timeStr;
+
+    const textSpan = document.createElement('span');
+    textSpan.className = 'log-item-text';
+    textSpan.textContent = message; // Safe textContent escaping
+
+    item.appendChild(timeSpan);
+    item.appendChild(textSpan);
+
+    viewport.appendChild(item);
+    viewport.scrollTop = viewport.scrollHeight;
+
+    state.logs.push({ time: timeStr, type, message });
+    document.getElementById('log-count-pill').textContent = `${state.logs.length} events`;
+  }
+
+  window.clearLiveLogs = function() {
+    state.logs = [];
+    const viewport = document.getElementById('log-viewport');
+    viewport.innerHTML = `
+      <div class="result-empty" id="log-empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>No active events. Start a task to observe real-time telemetry.</span>
+      </div>
+    `;
+    document.getElementById('log-count-pill').textContent = '0 events';
+  };
+
+  function updateTaskStateBadge(stateName, message) {
+    const badge = document.getElementById('task-state-badge');
+    badge.className = `state-badge ${stateName}`;
+    badge.textContent = stateName.replace(/_/g, ' ');
+  }
+
+  function showResultText(text, success, elapsed) {
+    document.getElementById('result-empty-state').style.display = 'none';
+    const content = document.getElementById('result-text-content');
+    content.style.display = 'block';
+    content.textContent = text; // Safe textContent rendering
+
+    const metaRow = document.getElementById('result-meta-row');
+    metaRow.style.display = 'flex';
+    document.getElementById('result-status-text').textContent = success ? 'Status: Completed Successfully' : 'Status: Failed';
+    document.getElementById('result-status-text').style.color = success ? 'var(--emerald-400)' : 'var(--red-400)';
+    document.getElementById('result-duration-text').textContent = elapsed ? `Duration: ${elapsed.toFixed(1)}s` : '';
+  }
+
+  window.copyResultText = function() {
+    const text = document.getElementById('result-text-content').textContent;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      const label = document.getElementById('btn-copy-label');
+      label.textContent = 'Copied!';
+      setTimeout(() => { label.textContent = 'Copy Result'; }, 2000);
+    });
+  };
+
+  // ── Human-in-the-Loop Approval Modal ──────────────────────────────────────
+  function showApprovalModal(evt) {
+    document.getElementById('modal-action-type').textContent = evt.action_type || 'Unknown';
+    document.getElementById('modal-destination').textContent = evt.destination || 'Current DOM';
+    document.getElementById('modal-reason').textContent = evt.reason || 'Restricted action';
+    
+    const riskBadge = document.getElementById('modal-risk-badge');
+    const risk = evt.risk_level || 'HIGH';
+    riskBadge.textContent = risk;
+    riskBadge.className = `chip risk-${risk}`;
+
+    const elemRow = document.getElementById('modal-element-row');
+    if (evt.element_info && (evt.element_info.node_name || evt.element_info.text)) {
+      elemRow.style.display = 'grid';
+      document.getElementById('modal-element-info').textContent = 
+        `${evt.element_info.node_name || ''} [${evt.element_info.text || ''}]`;
+    } else {
+      elemRow.style.display = 'none';
+    }
+
+    // Start 120s timer
+    state.approvalSecondsLeft = 120;
+    const timerText = document.getElementById('modal-timer-text');
+    const timerBar = document.getElementById('modal-timer-bar');
+    timerBar.style.width = '100%';
+    timerText.textContent = `${state.approvalSecondsLeft}s remaining`;
+
+    clearInterval(state.approvalTimerInterval);
+    state.approvalTimerInterval = setInterval(() => {
+      state.approvalSecondsLeft -= 1;
+      timerText.textContent = `${state.approvalSecondsLeft}s remaining`;
+      timerBar.style.width = `${(state.approvalSecondsLeft / 120) * 100}%`;
+
+      if (state.approvalSecondsLeft <= 0) {
+        clearInterval(state.approvalTimerInterval);
+        resolveApproval(false); // Default to Deny
+      }
+    }, 1000);
+
+    const overlay = document.getElementById('approval-overlay');
+    overlay.classList.add('visible');
+
+    // Default focus to Deny (safe default)
+    document.getElementById('btn-modal-deny').focus();
+  }
+
+  function hideApprovalModal() {
+    clearInterval(state.approvalTimerInterval);
+    document.getElementById('approval-overlay').classList.remove('visible');
+    state.pendingApprovalTaskId = null;
+  }
+
+  window.resolveApproval = async function(approved) {
+    const taskId = state.pendingApprovalTaskId || state.currentTaskId;
+    hideApprovalModal();
+
+    if (!taskId) return;
+
+    appendLogItem('log', `Submitting approval decision: ${approved ? 'ALLOW' : 'DENY'}...`);
+    try {
+      await fetch('/api/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          task_id: taskId,
+          approved: approved
+        })
+      });
+    } catch (e) {
+      appendLogItem('error', `Failed to deliver approval verdict: ${e.message}`);
+    }
+  };
+
+  // ── Audit Ledger & KPI Summaries ──────────────────────────────────────────
+  window.fetchAuditHistory = async function() {
+    try {
+      const res = await fetch('/api/audit');
+      if (!res.ok) return;
+      const data = await res.json();
+      state.auditEntries = data.entries || [];
+      renderAuditTable(state.auditEntries);
+      renderRecentDecisions(state.auditEntries);
+      updateKPISummaries(state.auditEntries);
+    } catch {}
+  };
+
+  function updateKPISummaries(entries) {
+    const total = entries.length;
+    const allowed = entries.filter(e => e.decision === 'ALLOW').length;
+    const approval = entries.filter(e => e.decision === 'REQUIRE_APPROVAL').length;
+    const blocked = entries.filter(e => e.decision === 'BLOCK').length;
+
+    document.getElementById('kpi-total-evaluated').textContent = total;
+    document.getElementById('kpi-allowed-count').textContent = allowed;
+    document.getElementById('kpi-approval-count').textContent = approval;
+    document.getElementById('kpi-blocked-count').textContent = blocked;
+  }
+
+  function renderRecentDecisions(entries) {
+    const tbody = document.getElementById('privacy-recent-tbody');
+    if (!tbody) return;
+
+    if (!entries.length) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-faint); padding:24px;">No security events logged in this session yet.</td></tr>`;
+      return;
+    }
+
+    const recent = entries.slice(-10).reverse();
+    tbody.innerHTML = recent.map(e => `
+      <tr>
+        <td class="text-mono text-faint" style="font-size:11px;">${e.timestamp ? e.timestamp.slice(11, 19) : '—'}</td>
+        <td class="text-mono" style="color:var(--teal-300);">${escapeHtml(e.action_type)}</td>
+        <td><span class="chip ${e.decision}">${e.decision}</span></td>
+        <td><span class="chip risk-${e.risk_level}">${e.risk_level}</span></td>
+        <td class="text-mono text-muted" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(e.destination || 'DOM')}</td>
+        <td style="color:var(--text-muted); max-width:240px; font-size:11.5px;">${escapeHtml(e.reason)}</td>
+        <td>
+          <span style="font-weight:600; color:${e.approved ? 'var(--emerald-400)' : e.approved === false ? 'var(--red-400)' : 'var(--text-faint)'}">
+            ${e.approved === true ? 'Approved' : e.approved === false ? 'Denied' : 'Auto'}
+          </span>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  window.applyAuditFilters = function() {
+    const query = (document.getElementById('audit-search-input').value || '').toLowerCase().trim();
+    const decisionFilter = document.getElementById('audit-filter-decision').value;
+    const riskFilter = document.getElementById('audit-filter-risk').value;
+
+    const filtered = state.auditEntries.filter(entry => {
+      const matchQuery = !query || 
+        (entry.action_type && entry.action_type.toLowerCase().includes(query)) ||
+        (entry.destination && entry.destination.toLowerCase().includes(query)) ||
+        (entry.reason && entry.reason.toLowerCase().includes(query));
+
+      const matchDecision = (decisionFilter === 'ALL') || (entry.decision === decisionFilter);
+      const matchRisk = (riskFilter === 'ALL') || (entry.risk_level === riskFilter);
+
+      return matchQuery && matchDecision && matchRisk;
+    });
+
+    renderAuditTable(filtered);
+  };
+
+  function renderAuditTable(entries) {
+    const tbody = document.getElementById('audit-ledger-tbody');
+    if (!tbody) return;
+
+    if (!entries.length) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-faint); padding:24px;">No audit records match the current criteria.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = entries.slice().reverse().map(e => `
+      <tr>
+        <td class="text-mono text-faint" style="font-size:11px;">${e.timestamp ? e.timestamp.replace('T', ' ').slice(0, 19) : '—'}</td>
+        <td class="text-mono" style="color:var(--teal-300); font-weight:600;">${escapeHtml(e.action_type)}</td>
+        <td><span class="chip ${e.decision}">${e.decision}</span></td>
+        <td><span class="chip risk-${e.risk_level}">${e.risk_level}</span></td>
+        <td class="text-mono text-muted" style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(e.destination || 'DOM Context')}</td>
+        <td style="color:var(--text-muted); font-size:11.5px; max-width:280px;">${escapeHtml(e.reason)}</td>
+        <td>
+          <span style="font-weight:600; color:${e.approved ? 'var(--emerald-400)' : e.approved === false ? 'var(--red-400)' : 'var(--text-faint)'}">
+            ${e.approved === true ? 'Approved' : e.approved === false ? 'Denied' : 'Auto'}
+          </span>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  window.exportAuditJson = function() {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.auditEntries, null, 2));
+    const dlAnchorElem = document.createElement('a');
+    dlAnchorElem.setAttribute("href", dataStr);
+    dlAnchorElem.setAttribute("download", `privix_audit_${Date.now()}.json`);
+    dlAnchorElem.click();
+  };
+
+  // ── Security & Sanitization ───────────────────────────────────────────────
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+})();
 </script>
 </body>
 </html>
-

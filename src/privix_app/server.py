@@ -90,6 +90,8 @@ class TaskRecord:
 
 # Active tasks map: task_id → TaskRecord
 _tasks: dict[str, TaskRecord] = {}
+# Active asyncio Task objects for cancellation
+_running_async_tasks: dict[str, asyncio.Task] = {}
 # WebSocket connections per task_id
 _ws_connections: dict[str, list[WebSocket]] = {}
 # Pending approval futures: task_id → Future[bool]
@@ -210,6 +212,11 @@ async def _run_safe_task(task_id: str, custom_prompt: str | None = None) -> None
         except Exception:
             pass
 
+    except asyncio.CancelledError:
+        record.state = TaskState.CANCELLED.value
+        record.error = "Task cancelled by user."
+        await emit(EventType.STATE, state=TaskState.CANCELLED.value, message="Task was cancelled by user.")
+        await emit(EventType.LOG, message="Task cancelled by user.")
     except asyncio.TimeoutError:
         record.state = TaskState.FAILED.value
         record.error = "Task timed out after 300 seconds."
@@ -220,6 +227,13 @@ async def _run_safe_task(task_id: str, custom_prompt: str | None = None) -> None
         record.error = str(exc)
         await emit(EventType.STATE, state=TaskState.FAILED.value, message=f"Error: {exc}")
         await emit(EventType.ERROR, error=str(exc))
+    finally:
+        _running_async_tasks.pop(task_id, None)
+        try:
+            if 'browser_session' in locals() and browser_session:
+                await browser_session.stop()
+        except Exception:
+            pass
 
 
 async def _run_privacy_task(task_id: str) -> None:
@@ -366,6 +380,11 @@ async def _run_privacy_task(task_id: str) -> None:
         except Exception:
             pass
 
+    except asyncio.CancelledError:
+        record.state = TaskState.CANCELLED.value
+        record.error = "Task cancelled by user."
+        await emit(EventType.STATE, state=TaskState.CANCELLED.value, message="Task was cancelled by user.")
+        await emit(EventType.LOG, message="Task cancelled by user.")
     except asyncio.TimeoutError:
         record.state = TaskState.FAILED.value
         record.error = "Privacy demo timed out after 300 seconds."
@@ -376,6 +395,13 @@ async def _run_privacy_task(task_id: str) -> None:
         record.error = str(exc)
         await emit(EventType.STATE, state=TaskState.FAILED.value, message=f"Error: {exc}")
         await emit(EventType.ERROR, error=str(exc))
+    finally:
+        _running_async_tasks.pop(task_id, None)
+        try:
+            if 'browser_session' in locals() and browser_session:
+                await browser_session.stop()
+        except Exception:
+            pass
 
 
 # ── HTTP API ───────────────────────────────────────────────────────────────────
@@ -437,17 +463,58 @@ async def start_task(body: dict):
     )
     _tasks[task_id] = record
 
+    # Prevent duplicate active task execution
+    for t_id, rec in _tasks.items():
+        if rec.state in (TaskState.RUNNING.value, TaskState.WAITING_FOR_APPROVAL.value, TaskState.QUEUED.value, "navigating"):
+            atask = _running_async_tasks.get(t_id)
+            if atask and not atask.done():
+                return JSONResponse({"error": "A task is already actively running. Please cancel it or wait for completion."}, status_code=409)
+
     # Launch the task in the background
     if mode == "safe":
-        asyncio.ensure_future(_run_safe_task(task_id, custom_prompt=custom_task or None))
+        _running_async_tasks[task_id] = asyncio.create_task(_run_safe_task(task_id, custom_prompt=custom_task or None))
     elif mode == "privacy":
-        asyncio.ensure_future(_run_privacy_task(task_id))
+        _running_async_tasks[task_id] = asyncio.create_task(_run_privacy_task(task_id))
     elif mode == "custom":
-        asyncio.ensure_future(_run_safe_task(task_id, custom_prompt=custom_task))
+        _running_async_tasks[task_id] = asyncio.create_task(_run_safe_task(task_id, custom_prompt=custom_task))
     else:
         return JSONResponse({"error": f"Unknown mode '{mode}'"}, status_code=400)
 
     return {"task_id": task_id, "mode": mode}
+
+
+@app.post("/api/cancel")
+async def cancel_task(body: dict):
+    """
+    Cancel an active task and clean up resources.
+    Body: { "task_id": "..." }
+    """
+    task_id = body.get("task_id")
+    if not task_id:
+        return JSONResponse({"error": "task_id required"}, status_code=400)
+
+    # Resolve pending approval if any
+    fut = _approval_futures.get(task_id)
+    if fut and not fut.done():
+        fut.set_result(False)
+
+    t = _running_async_tasks.get(task_id)
+    if t and not t.done():
+        t.cancel()
+        record = _tasks.get(task_id)
+        if record:
+            record.state = TaskState.CANCELLED.value
+            record.error = "Task cancelled by user."
+        return {"task_id": task_id, "status": "cancelling"}
+
+    record = _tasks.get(task_id)
+    if record and record.state in (TaskState.RUNNING.value, TaskState.QUEUED.value, TaskState.WAITING_FOR_APPROVAL.value, "navigating"):
+        record.state = TaskState.CANCELLED.value
+        record.error = "Task cancelled by user."
+        await _emit_async(task_id, EventType.STATE, state=TaskState.CANCELLED.value, message="Task cancelled.")
+        return {"task_id": task_id, "status": "cancelled"}
+
+    return {"task_id": task_id, "status": "not_active"}
 
 
 @app.post("/api/approve")
