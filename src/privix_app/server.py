@@ -92,6 +92,8 @@ class TaskRecord:
 _tasks: dict[str, TaskRecord] = {}
 # Active asyncio Task objects for cancellation
 _running_async_tasks: dict[str, asyncio.Task] = {}
+# Active browser sessions (for keeping browser open upon request)
+_active_browser_sessions: dict[str, Any] = {}
 # WebSocket connections per task_id
 _ws_connections: dict[str, list[WebSocket]] = {}
 # Pending approval futures: task_id → Future[bool]
@@ -155,8 +157,13 @@ def _get_mock_server() -> PrivixMockServer:
 
 # ── Task runners ───────────────────────────────────────────────────────────────
 
-async def _run_safe_task(task_id: str, custom_prompt: str | None = None) -> None:
-    """Execute the safe browsing demo and stream progress via WebSocket."""
+async def _run_safe_task(
+    task_id: str,
+    custom_prompt: str | None = None,
+    max_steps: int = 3,
+    keep_browser_open: bool = False,
+) -> None:
+    """Execute the browsing task and stream progress via WebSocket."""
     from browser_use import Agent, BrowserProfile, BrowserSession, ChatOllama
 
     record = _tasks[task_id]
@@ -169,7 +176,15 @@ async def _run_safe_task(task_id: str, custom_prompt: str | None = None) -> None
     await emit(EventType.STATE, state=TaskState.RUNNING.value, message="Initializing Ollama + browser...")
 
     prompt = custom_prompt or SAFE_TASK_PROMPT
+    if custom_prompt and any(w in custom_prompt.lower() for w in ("play", "video", "yt", "youtube", "song", "stream")):
+        if "click" not in custom_prompt.lower():
+            prompt = (
+                f"{custom_prompt}. "
+                "Instructions: Search for the video/song, then click on the video result/thumbnail so it starts playing. "
+                "Once playback begins, call the done action."
+            )
 
+    browser_session = None
     try:
         llm = ChatOllama(
             model="qwen2.5:3b",
@@ -178,6 +193,7 @@ async def _run_safe_task(task_id: str, custom_prompt: str | None = None) -> None
         )
         browser_profile = BrowserProfile(headless=False)
         browser_session = BrowserSession(browser_profile=browser_profile)
+        _active_browser_sessions[task_id] = browser_session
 
         agent = Agent(
             task=prompt,
@@ -192,11 +208,12 @@ async def _run_safe_task(task_id: str, custom_prompt: str | None = None) -> None
             max_actions_per_step=1,
         )
 
-        await emit(EventType.LOG, message="Browser opened. Navigating to https://example.com...")
+        target_hint = "https://example.com" if not custom_prompt else "requested destination"
+        await emit(EventType.LOG, message=f"Browser opened. Starting agent ({max_steps} max steps permitted)...")
         await emit(EventType.STATE, state="navigating", message="Navigating...")
 
         start = time.time()
-        result = await asyncio.wait_for(agent.run(max_steps=3), timeout=300)
+        result = await asyncio.wait_for(agent.run(max_steps=max_steps), timeout=360)
         elapsed = time.time() - start
 
         final = result.final_result() or "Task completed (no text returned)"
@@ -207,33 +224,50 @@ async def _run_safe_task(task_id: str, custom_prompt: str | None = None) -> None
         await emit(EventType.STATE, state=TaskState.COMPLETED.value, message=f"Done in {elapsed:.1f}s")
         await emit(EventType.RESULT, result=final, elapsed=elapsed)
 
-        try:
-            await browser_session.stop()
-        except Exception:
-            pass
+        if not keep_browser_open:
+            try:
+                await browser_session.stop()
+            except Exception:
+                pass
+            _active_browser_sessions.pop(task_id, None)
+        else:
+            await emit(EventType.LOG, message="Browser session kept open for playback/interaction. Click 'Cancel' or 'Reset' to close the browser window.")
 
     except asyncio.CancelledError:
         record.state = TaskState.CANCELLED.value
         record.error = "Task cancelled by user."
         await emit(EventType.STATE, state=TaskState.CANCELLED.value, message="Task was cancelled by user.")
         await emit(EventType.LOG, message="Task cancelled by user.")
+        if browser_session:
+            try:
+                await browser_session.stop()
+            except Exception:
+                pass
+            _active_browser_sessions.pop(task_id, None)
     except asyncio.TimeoutError:
         record.state = TaskState.FAILED.value
-        record.error = "Task timed out after 300 seconds."
+        record.error = "Task timed out after 360 seconds."
         await emit(EventType.STATE, state=TaskState.FAILED.value, message=record.error)
         await emit(EventType.ERROR, error=record.error)
+        if browser_session:
+            try:
+                await browser_session.stop()
+            except Exception:
+                pass
+            _active_browser_sessions.pop(task_id, None)
     except Exception as exc:
         record.state = TaskState.FAILED.value
         record.error = str(exc)
         await emit(EventType.STATE, state=TaskState.FAILED.value, message=f"Error: {exc}")
         await emit(EventType.ERROR, error=str(exc))
+        if browser_session:
+            try:
+                await browser_session.stop()
+            except Exception:
+                pass
+            _active_browser_sessions.pop(task_id, None)
     finally:
         _running_async_tasks.pop(task_id, None)
-        try:
-            if 'browser_session' in locals() and browser_session:
-                await browser_session.stop()
-        except Exception:
-            pass
 
 
 async def _run_privacy_task(task_id: str) -> None:
@@ -470,17 +504,44 @@ async def start_task(body: dict):
             if atask and not atask.done():
                 return JSONResponse({"error": "A task is already actively running. Please cancel it or wait for completion."}, status_code=409)
 
+    # Close any lingering previous browser session from earlier tasks
+    for old_tid, old_sess in list(_active_browser_sessions.items()):
+        try:
+            await old_sess.stop()
+        except Exception:
+            pass
+        _active_browser_sessions.pop(old_tid, None)
+
+    # Auto-detect or parse keep_open option
+    keep_open_requested = body.get("keep_open")
+    if keep_open_requested is None:
+        # Auto-detect media playback / interactive prompts
+        lower_prompt = (custom_task or "").lower()
+        keep_open_requested = any(w in lower_prompt for w in ("play", "song", "video", "yt", "youtube", "music", "stream", "watch"))
+
+    # Determine step bounds
+    custom_max_steps = int(body.get("max_steps", 12 if keep_open_requested else 10))
+
     # Launch the task in the background
     if mode == "safe":
-        _running_async_tasks[task_id] = asyncio.create_task(_run_safe_task(task_id, custom_prompt=custom_task or None))
+        _running_async_tasks[task_id] = asyncio.create_task(
+            _run_safe_task(task_id, custom_prompt=custom_task or None, max_steps=3, keep_browser_open=False)
+        )
     elif mode == "privacy":
         _running_async_tasks[task_id] = asyncio.create_task(_run_privacy_task(task_id))
     elif mode == "custom":
-        _running_async_tasks[task_id] = asyncio.create_task(_run_safe_task(task_id, custom_prompt=custom_task))
+        _running_async_tasks[task_id] = asyncio.create_task(
+            _run_safe_task(
+                task_id,
+                custom_prompt=custom_task,
+                max_steps=custom_max_steps,
+                keep_browser_open=bool(keep_open_requested),
+            )
+        )
     else:
         return JSONResponse({"error": f"Unknown mode '{mode}'"}, status_code=400)
 
-    return {"task_id": task_id, "mode": mode}
+    return {"task_id": task_id, "mode": mode, "keep_open": bool(keep_open_requested), "max_steps": custom_max_steps}
 
 
 @app.post("/api/cancel")
@@ -492,6 +553,14 @@ async def cancel_task(body: dict):
     task_id = body.get("task_id")
     if not task_id:
         return JSONResponse({"error": "task_id required"}, status_code=400)
+
+    # Clean up any active browser session for this task
+    sess = _active_browser_sessions.pop(task_id, None)
+    if sess:
+        try:
+            await sess.stop()
+        except Exception:
+            pass
 
     # Resolve pending approval if any
     fut = _approval_futures.get(task_id)
@@ -550,7 +619,13 @@ async def get_audit(task_id: str | None = None):
 
 @app.post("/api/reset")
 async def reset_mock():
-    """Reset mock server submission counter."""
+    """Reset mock server submission counter and close any lingering browser sessions."""
+    for tid, sess in list(_active_browser_sessions.items()):
+        try:
+            await sess.stop()
+        except Exception:
+            pass
+        _active_browser_sessions.pop(tid, None)
     srv = _get_mock_server()
     srv.reset_state()
     return {"submissions": 0, "status": "reset"}

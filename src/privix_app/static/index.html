@@ -1337,12 +1337,31 @@
             <span class="suggestion-label">Quick Suggest:</span>
             <button class="chip-btn" onclick="applySuggestion('example')">Example.com Title & Summary</button>
             <button class="chip-btn" onclick="applySuggestion('medical')">Synthetic Patient Form Interception</button>
+            <button class="chip-btn" onclick="applySuggestion('youtube')">YouTube: Closer by Ed Sheeran</button>
             <button class="chip-btn" onclick="applySuggestion('wikipedia')">Wikipedia Summary (Read Only)</button>
           </div>
 
           <!-- Composer input -->
           <div class="composer-input-wrap">
             <textarea id="task-prompt-input" placeholder="Task prompt instructions..."></textarea>
+          </div>
+
+          <!-- Execution Controls & Options -->
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:14px; font-size:12px; color:var(--text-muted); background:var(--bg-subtle); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:8px 14px;">
+            <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+              <input type="checkbox" id="checkbox-keep-open" checked style="accent-color:var(--teal-500); width:15px; height:15px; cursor:pointer;" />
+              <span>Keep browser open after completion (plays audio/video continuously)</span>
+            </label>
+
+            <div style="display:inline-flex; align-items:center; gap:8px;">
+              <span>Max Steps:</span>
+              <select id="select-max-steps" class="select-dropdown" style="padding:4px 10px; font-size:11.5px;">
+                <option value="3">3 steps (Fast check)</option>
+                <option value="8">8 steps (Standard)</option>
+                <option value="12" selected>12 steps (Media & Multi-action)</option>
+                <option value="18">18 steps (Deep exploration)</option>
+              </select>
+            </div>
           </div>
 
           <!-- Actions -->
@@ -1956,6 +1975,13 @@
     } else if (type === 'wikipedia') {
       selectMode('custom');
       document.getElementById('task-prompt-input').value = PROMPT_PRESETS.custom;
+    } else if (type === 'youtube') {
+      selectMode('custom');
+      document.getElementById('task-prompt-input').value = "Open https://youtube.com, search for 'Closer by Ed Sheeran', and click the video thumbnail to start playing it.";
+      const chk = document.getElementById('checkbox-keep-open');
+      if (chk) chk.checked = true;
+      const sel = document.getElementById('select-max-steps');
+      if (sel) sel.value = "12";
     }
   };
 
@@ -2045,12 +2071,17 @@
     updateTaskStateBadge('running', 'Initializing...');
 
     try {
+      const keepOpen = document.getElementById('checkbox-keep-open') ? document.getElementById('checkbox-keep-open').checked : true;
+      const maxSteps = document.getElementById('select-max-steps') ? parseInt(document.getElementById('select-max-steps').value, 10) : 10;
+
       const resp = await fetch('/api/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mode: state.currentMode,
-          task: promptText
+          task: promptText,
+          keep_open: keepOpen,
+          max_steps: maxSteps
         })
       });
 

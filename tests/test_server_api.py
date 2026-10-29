@@ -59,6 +59,19 @@ class TestPrivixServerAPI(unittest.TestCase):
         resp = self.client.post("/api/run", json={"mode": "invalid_mode"})
         self.assertEqual(resp.status_code, 400)
 
+    def test_run_options_keep_open(self):
+        resp = self.client.post(
+            "/api/run",
+            json={"mode": "custom", "task": "Play Closer on YouTube", "keep_open": True, "max_steps": 12}
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data.get("keep_open"))
+        self.assertEqual(data.get("max_steps"), 12)
+        # Cancel the task so it doesn't linger
+        self.client.post("/api/cancel", json={"task_id": data["task_id"]})
+
 
 if __name__ == "__main__":
     unittest.main()
+
