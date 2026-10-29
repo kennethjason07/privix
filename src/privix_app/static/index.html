@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privix — Privacy Gateway</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:       #0f1117;
+      --surface:  #1a1d27;
+      --surface2: #222636;
+      --border:   #2e3347;
+      --accent:   #6366f1;
+      --accent2:  #818cf8;
+      --green:    #22c55e;
+      --red:      #ef4444;
+      --yellow:   #f59e0b;
+      --blue:     #3b82f6;
+      --text:     #e2e8f0;
+      --muted:    #94a3b8;
+      --radius:   10px;
+      --font:     'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; line-height: 1.5; }
+
+    /* ── Layout ── */
+    #app { display: flex; flex-direction: column; min-height: 100vh; }
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; }
+    .logo { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+    .logo-icon { width: 32px; height: 32px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    .badge { font-size: 10px; font-weight: 600; background: #1e293b; border: 1px solid var(--border); color: var(--muted); padding: 2px 8px; border-radius: 20px; letter-spacing: 0.5px; text-transform: uppercase; }
+    #status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; margin-right: 6px; transition: background 0.3s; }
+    #status-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    #status-text { font-size: 12px; color: var(--muted); }
+
+    main { flex: 1; display: grid; grid-template-columns: 1fr 380px; gap: 0; }
+    aside { background: var(--surface); border-right: 1px solid var(--border); padding: 24px 20px; display: flex; flex-direction: column; gap: 20px; }
+
+    /* ── Task panel ── */
+    .section-title { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+    .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .mode-btn {
+      padding: 12px 10px; border-radius: var(--radius); border: 2px solid var(--border);
+      background: var(--surface2); color: var(--text); cursor: pointer;
+      font-size: 13px; font-weight: 600; text-align: center; transition: all 0.15s;
+    }
+    .mode-btn:hover { border-color: var(--accent2); background: #252a3b; }
+    .mode-btn.active { border-color: var(--accent); background: #2a2f50; color: var(--accent2); }
+    .mode-btn .mode-icon { font-size: 18px; display: block; margin-bottom: 4px; }
+    .mode-btn .mode-label { font-size: 11px; color: var(--muted); font-weight: 400; display: block; margin-top: 2px; }
+    .custom-task-wrap { display: none; flex-direction: column; gap: 6px; }
+    .custom-task-wrap.visible { display: flex; }
+    textarea {
+      width: 100%; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text); padding: 10px 12px;
+      font-size: 13px; font-family: var(--font); resize: vertical; min-height: 80px;
+      outline: none; transition: border-color 0.15s;
+    }
+    textarea:focus { border-color: var(--accent); }
+    .run-btn {
+      padding: 12px; border-radius: var(--radius); border: none;
+      background: var(--accent); color: #fff; font-size: 14px; font-weight: 700;
+      cursor: pointer; transition: background 0.15s, transform 0.1s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .run-btn:hover:not(:disabled) { background: #4f52d4; }
+    .run-btn:active:not(:disabled) { transform: scale(0.98); }
+    .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── State timeline ── */
+    .state-bar { padding: 14px 16px; border-radius: var(--radius); background: var(--surface2); border: 1px solid var(--border); }
+    .state-bar .state-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+    .state-bar .state-value { font-size: 15px; font-weight: 700; margin-top: 4px; }
+    .state-value.completed { color: var(--green); }
+    .state-value.failed, .state-value.blocked { color: var(--red); }
+    .state-value.waiting_for_approval { color: var(--yellow); }
+    .state-value.running, .state-value.navigating { color: var(--blue); }
+    .state-value.queued { color: var(--muted); }
+
+    /* ── Approval card ── */
+    #approval-card {
+      display: none; flex-direction: column; gap: 12px;
+      padding: 16px; border-radius: var(--radius);
+      background: #1c1a00; border: 2px solid var(--yellow);
+    }
+    #approval-card.visible { display: flex; }
+    #approval-card .appr-title { font-size: 13px; font-weight: 700; color: var(--yellow); display: flex; align-items: center; gap: 6px; }
+    #approval-card .appr-row { display: flex; gap: 8px; align-items: flex-start; }
+    #approval-card .appr-key { font-size: 11px; color: var(--muted); width: 90px; flex-shrink: 0; padding-top: 1px; }
+    #approval-card .appr-val { font-size: 12px; color: var(--text); word-break: break-all; }
+    #approval-card .appr-risk { display: inline-block; padding: 1px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+    #approval-card .appr-risk.HIGH, #approval-card .appr-risk.CRITICAL { background: #3b1212; color: var(--red); }
+    #approval-card .appr-risk.MEDIUM { background: #3b2800; color: var(--yellow); }
+    #approval-card .appr-risk.LOW { background: #0a2e1c; color: var(--green); }
+    .appr-btns { display: flex; gap: 8px; margin-top: 4px; }
+    .appr-btn { flex: 1; padding: 9px; border-radius: 8px; border: none; font-size: 13px; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
+    .appr-btn.allow { background: var(--green); color: #fff; }
+    .appr-btn.allow:hover { opacity: 0.85; }
+    .appr-btn.deny { background: var(--red); color: #fff; }
+    .appr-btn.deny:hover { opacity: 0.85; }
+
+    /* ── Main content ── */
+    .content { display: flex; flex-direction: column; overflow: hidden; }
+    .tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--surface); }
+    .tab {
+      padding: 12px 20px; font-size: 13px; font-weight: 600; cursor: pointer;
+      border-bottom: 2px solid transparent; color: var(--muted);
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent2); border-bottom-color: var(--accent); }
+    .tab-badge { display: inline-block; background: var(--accent); color: #fff; border-radius: 10px; font-size: 10px; padding: 0 6px; margin-left: 6px; vertical-align: middle; }
+
+    .panels { flex: 1; overflow: hidden; position: relative; }
+    .panel { display: none; flex-direction: column; height: 100%; padding: 20px 24px; overflow-y: auto; }
+    .panel.active { display: flex; }
+
+    /* ── Result panel ── */
+    .result-box {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; font-size: 13px; line-height: 1.7; white-space: pre-wrap;
+      min-height: 80px; color: var(--text);
+    }
+    .result-box.success { border-color: #1a4731; background: #0a1f14; }
+    .result-box.error { border-color: #4a1515; background: #1f0a0a; color: var(--red); }
+    .meta-row { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+    .meta-chip {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.5px; padding: 3px 10px;
+      border-radius: 20px; text-transform: uppercase;
+    }
+    .meta-chip.green { background: #0f3024; color: var(--green); }
+    .meta-chip.red { background: #300f0f; color: var(--red); }
+    .meta-chip.blue { background: #0f1f40; color: var(--blue); }
+
+    /* ── Log panel ── */
+    #log-list { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-family: 'Consolas', 'Courier New', monospace; }
+    .log-entry { padding: 8px 12px; border-radius: 6px; background: var(--surface2); border-left: 3px solid var(--border); color: var(--muted); }
+    .log-entry.state { border-left-color: var(--blue); color: var(--blue); }
+    .log-entry.approval { border-left-color: var(--yellow); color: var(--yellow); background: #1c1a00; }
+    .log-entry.denied { border-left-color: var(--red); color: var(--red); }
+    .log-entry.approved { border-left-color: var(--green); color: var(--green); }
+    .log-entry.error { border-left-color: var(--red); color: var(--red); background: #1f0a0a; }
+    .log-time { color: var(--muted); margin-right: 8px; font-size: 10px; }
+
+    /* ── Audit panel ── */
+    .audit-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .audit-table th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+    .audit-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .audit-table tr:last-child td { border-bottom: none; }
+    .decision-chip { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+    .decision-chip.ALLOW { background: #0f3024; color: var(--green); }
+    .decision-chip.BLOCK { background: #300f0f; color: var(--red); }
+    .decision-chip.REQUIRE_APPROVAL { background: #3b2800; color: var(--yellow); }
+    .risk-chip { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; }
+    .risk-chip.LOW { background: #0f3024; color: var(--green); }
+    .risk-chip.MEDIUM { background: #3b2800; color: var(--yellow); }
+    .risk-chip.HIGH, .risk-chip.CRITICAL { background: #300f0f; color: var(--red); }
+    .empty-state { text-align: center; color: var(--muted); padding: 40px; font-size: 13px; }
+
+    /* ── Mock status panel in sidebar ── */
+    .mock-status { padding: 12px 14px; border-radius: var(--radius); background: var(--surface2); border: 1px solid var(--border); font-size: 12px; }
+    .mock-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .mock-row:last-child { margin-bottom: 0; }
+    .mock-val { font-weight: 700; color: var(--text); }
+    .mock-val.zero { color: var(--green); }
+    .mock-val.nonzero { color: var(--red); }
+    a { color: var(--accent2); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Spinner ── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(99,102,241,0.3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; }
+
+    /* ── Scrollbars ── */
+    ::-webkit-scrollbar { width: 6px; } 
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+      aside { border-right: none; border-bottom: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🔒</div>
+      <span>Privix</span>
+      <span class="badge">Privacy Gateway</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span id="status-dot"></span>
+      <span id="status-text">Checking Ollama...</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Sidebar -->
+    <aside>
+      <div>
+        <div class="section-title">Select Demo Mode</div>
+        <div class="mode-grid">
+          <button class="mode-btn active" data-mode="safe" onclick="selectMode('safe', this)">
+            <span class="mode-icon">🌐</span>
+            Safe Browse
+            <span class="mode-label">example.com summary</span>
+          </button>
+          <button class="mode-btn" data-mode="privacy" onclick="selectMode('privacy', this)">
+            <span class="mode-icon">🛡️</span>
+            Privacy Demo
+            <span class="mode-label">Intercept sensitive form</span>
+          </button>
+          <button class="mode-btn" data-mode="custom" onclick="selectMode('custom', this)" style="grid-column:1/-1">
+            <span class="mode-icon">✏️</span>
+            Custom Task
+            <span class="mode-label">Enter your own prompt</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="custom-task-wrap" class="custom-task-wrap">
+        <div class="section-title">Custom Task Prompt</div>
+        <textarea id="custom-task" placeholder="e.g. Open https://wikipedia.org and summarize the featured article title."></textarea>
+      </div>
+
+      <!-- State -->
+      <div class="state-bar">
+        <div class="state-label">Current State</div>
+        <div id="state-value" class="state-value queued">Idle</div>
+        <div id="state-msg" style="font-size:12px;color:var(--muted);margin-top:4px;"></div>
+      </div>
+
+      <!-- Approval Card -->
+      <div id="approval-card">
+        <div class="appr-title">⚠️ Approval Required</div>
+        <div class="appr-row"><span class="appr-key">Action</span><span class="appr-val" id="appr-action"></span></div>
+        <div class="appr-row"><span class="appr-key">Destination</span><span class="appr-val" id="appr-dest"></span></div>
+        <div class="appr-row"><span class="appr-key">Reason</span><span class="appr-val" id="appr-reason"></span></div>
+        <div class="appr-row"><span class="appr-key">Risk</span><span class="appr-val"><span class="appr-risk" id="appr-risk"></span></span></div>
+        <div class="appr-btns">
+          <button class="appr-btn deny" onclick="sendApproval(false)">✕ Deny</button>
+          <button class="appr-btn allow" onclick="sendApproval(true)">✓ Allow</button>
+        </div>
+      </div>
+
+      <!-- Run button -->
+      <button class="run-btn" id="run-btn" onclick="runTask()">
+        <span id="run-spinner" class="spinner" style="display:none"></span>
+        <span id="run-label">▶ Run Demo</span>
+      </button>
+
+      <!-- Mock server status (shown for privacy mode) -->
+      <div id="mock-section" style="display:none">
+        <div class="section-title">Mock Server</div>
+        <div class="mock-status">
+          <div class="mock-row">
+            <span style="color:var(--muted)">Submissions</span>
+            <span class="mock-val zero" id="mock-subs">0</span>
+          </div>
+          <div class="mock-row">
+            <span style="color:var(--muted)">Portal</span>
+            <a id="mock-link" href="#" target="_blank">Open</a>
+          </div>
+          <div style="margin-top:8px;">
+            <button onclick="resetMock()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;">Reset Counter</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="content">
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('result', this)">Result</div>
+        <div class="tab" onclick="switchTab('log', this)">Live Log <span class="tab-badge" id="log-count">0</span></div>
+        <div class="tab" onclick="switchTab('audit', this)">Audit Log <span class="tab-badge" id="audit-count">0</span></div>
+      </div>
+      <div class="panels">
+        <!-- Result Panel -->
+        <div class="panel active" id="panel-result">
+          <div class="meta-row" id="result-meta" style="display:none">
+            <span class="meta-chip" id="meta-status-chip">Completed</span>
+            <span style="font-size:12px;color:var(--muted)" id="meta-time"></span>
+            <span style="font-size:12px;color:var(--muted)" id="meta-subs"></span>
+          </div>
+          <div class="result-box" id="result-box">
+            Run a demo mode to see the agent result here.
+          </div>
+        </div>
+
+        <!-- Log Panel -->
+        <div class="panel" id="panel-log">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <span style="color:var(--muted);font-size:12px;">Real-time execution log</span>
+            <button onclick="clearLog()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;">Clear</button>
+          </div>
+          <div id="log-list">
+            <div class="empty-state">No log entries yet. Start a demo to see real-time progress.</div>
+          </div>
+        </div>
+
+        <!-- Audit Panel -->
+        <div class="panel" id="panel-audit">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <span style="color:var(--muted);font-size:12px;">Policy engine decisions — auto-redacted</span>
+            <button onclick="fetchAudit()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;">Refresh</button>
+          </div>
+          <div id="audit-container">
+            <div class="empty-state">No audit entries yet.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let currentMode = 'safe';
+let currentTaskId = null;
+let ws = null;
+let pendingApprovalTaskId = null;
+let logEntries = [];
+let auditEntries = [];
+let isRunning = false;
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  checkStatus();
+  setInterval(checkStatus, 15000);
+});
+
+async function checkStatus() {
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    const dot = document.getElementById('status-dot');
+    const txt = document.getElementById('status-text');
+    if (d.ollama) {
+      dot.className = 'ok';
+      txt.textContent = `Ollama ready · ${d.ollama_model}`;
+    } else {
+      dot.className = '';
+      txt.textContent = 'Ollama offline — start with: ollama serve';
+    }
+  } catch {
+    document.getElementById('status-text').textContent = 'Server unreachable';
+  }
+}
+
+// ── Mode selection ────────────────────────────────────────────────────────────
+function selectMode(mode, btn) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const wrap = document.getElementById('custom-task-wrap');
+  const mockSection = document.getElementById('mock-section');
+  wrap.classList.toggle('visible', mode === 'custom');
+  mockSection.style.display = mode === 'privacy' ? 'block' : 'none';
+  if (mode === 'privacy') fetchMockStatus();
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(name, tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  tab.classList.add('active');
+  document.getElementById(`panel-${name}`).classList.add('active');
+}
+
+// ── Task execution ────────────────────────────────────────────────────────────
+async function runTask() {
+  if (isRunning) return;
+  isRunning = true;
+
+  // Reset UI
+  resetUIForNewRun();
+
+  const body = { mode: currentMode };
+  if (currentMode === 'custom') {
+    const t = document.getElementById('custom-task').value.trim();
+    if (!t) { alert('Please enter a task prompt.'); isRunning = false; return; }
+    body.task = t;
+  }
+
+  setRunning(true);
+  addLog('state', `Starting demo: mode=${currentMode}`);
+
+  try {
+    const r = await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.error) { addLog('error', d.error); setRunning(false); isRunning = false; return; }
+    currentTaskId = d.task_id;
+    connectWebSocket(currentTaskId);
+  } catch (e) {
+    addLog('error', `Failed to start task: ${e}`);
+    setRunning(false);
+    isRunning = false;
+  }
+}
+
+function resetUIForNewRun() {
+  logEntries = [];
+  auditEntries = [];
+  document.getElementById('log-list').innerHTML = '';
+  document.getElementById('result-box').className = 'result-box';
+  document.getElementById('result-box').textContent = 'Running…';
+  document.getElementById('result-meta').style.display = 'none';
+  document.getElementById('audit-container').innerHTML = '<div class="empty-state">Waiting for audit entries…</div>';
+  document.getElementById('log-count').textContent = '0';
+  document.getElementById('audit-count').textContent = '0';
+  hideApprovalCard();
+  setState('queued', 'Preparing task…');
+  if (currentMode === 'privacy') fetchMockStatus();
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+function connectWebSocket(taskId) {
+  if (ws) { try { ws.close(); } catch {} }
+  ws = new WebSocket(`ws://${location.host}/ws/${taskId}`);
+  ws.onmessage = (ev) => handleEvent(JSON.parse(ev.data));
+  ws.onerror = () => addLog('error', 'WebSocket connection error.');
+  ws.onclose = () => {
+    // If task still "running", mark failed
+    const sv = document.getElementById('state-value');
+    if (sv && sv.textContent === 'Running') {
+      addLog('error', 'Connection to server lost.');
+    }
+  };
+}
+
+function handleEvent(evt) {
+  const { type } = evt;
+  if (type === 'ping') return;
+
+  switch (type) {
+    case 'state':
+      setState(evt.state, evt.message);
+      addLog('state', `[${evt.state.toUpperCase()}] ${evt.message || ''}`);
+      if (['completed', 'failed', 'blocked', 'cancelled'].includes(evt.state)) {
+        setRunning(false);
+        isRunning = false;
+      }
+      break;
+
+    case 'log':
+      addLog('log', evt.message);
+      break;
+
+    case 'result':
+      showResult(evt.result, evt.elapsed, evt.submissions);
+      break;
+
+    case 'audit':
+      if (evt.entries) { auditEntries = evt.entries; renderAuditTable(); }
+      break;
+
+    case 'approval_required':
+      pendingApprovalTaskId = evt.task_id;
+      showApprovalCard(evt);
+      addLog('approval', `Approval required: ${evt.action_type} → ${evt.destination || '(current page)'}`);
+      break;
+
+    case 'approved':
+      hideApprovalCard();
+      addLog('approved', `Action '${evt.action_type}' was ALLOWED`);
+      break;
+
+    case 'denied':
+      hideApprovalCard();
+      addLog('denied', `Action '${evt.action_type}' was DENIED — ${evt.reason || ''}`);
+      break;
+
+    case 'mock_status':
+      updateMockStatus(evt.submissions, evt.portal_url);
+      break;
+
+    case 'error':
+      showResultError(evt.error);
+      addLog('error', `Error: ${evt.error}`);
+      setRunning(false);
+      isRunning = false;
+      break;
+  }
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function setRunning(on) {
+  document.getElementById('run-btn').disabled = on;
+  document.getElementById('run-spinner').style.display = on ? 'inline-block' : 'none';
+  document.getElementById('run-label').textContent = on ? 'Running…' : '▶ Run Demo';
+}
+
+function setState(state, msg) {
+  const el = document.getElementById('state-value');
+  el.className = `state-value ${state}`;
+  const labels = {
+    queued: 'Queued', running: 'Running', navigating: 'Navigating',
+    waiting_for_approval: 'Waiting — Approval Required',
+    completed: 'Completed', failed: 'Failed', blocked: 'Blocked',
+    cancelled: 'Cancelled',
+  };
+  el.textContent = labels[state] || state;
+  const msgEl = document.getElementById('state-msg');
+  if (msgEl) msgEl.textContent = msg || '';
+}
+
+function showResult(text, elapsed, submissions) {
+  const box = document.getElementById('result-box');
+  box.className = 'result-box success';
+  box.textContent = text;
+
+  const meta = document.getElementById('result-meta');
+  meta.style.display = 'flex';
+  document.getElementById('meta-status-chip').className = 'meta-chip green';
+  document.getElementById('meta-status-chip').textContent = 'Completed';
+  document.getElementById('meta-time').textContent = elapsed ? `${elapsed.toFixed(1)}s` : '';
+  if (submissions !== undefined) {
+    const subsEl = document.getElementById('meta-subs');
+    subsEl.textContent = `Submissions to server: ${submissions}`;
+    subsEl.style.color = submissions === 0 ? 'var(--green)' : 'var(--red)';
+  }
+}
+
+function showResultError(msg) {
+  const box = document.getElementById('result-box');
+  box.className = 'result-box error';
+  box.textContent = `Error: ${msg}`;
+  const meta = document.getElementById('result-meta');
+  meta.style.display = 'flex';
+  document.getElementById('meta-status-chip').className = 'meta-chip red';
+  document.getElementById('meta-status-chip').textContent = 'Failed';
+}
+
+// ── Log ───────────────────────────────────────────────────────────────────────
+function addLog(cls, msg) {
+  const list = document.getElementById('log-list');
+  if (list.children.length === 1 && list.children[0].classList.contains('empty-state')) {
+    list.innerHTML = '';
+  }
+  const t = new Date().toLocaleTimeString('en', { hour12: false });
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${cls}`;
+  entry.innerHTML = `<span class="log-time">${t}</span>${escHtml(msg)}`;
+  list.appendChild(entry);
+  list.scrollTop = list.scrollHeight;
+  logEntries.push({ t, cls, msg });
+  document.getElementById('log-count').textContent = logEntries.length;
+}
+
+function clearLog() {
+  logEntries = [];
+  document.getElementById('log-list').innerHTML = '<div class="empty-state">Log cleared.</div>';
+  document.getElementById('log-count').textContent = '0';
+}
+
+// ── Audit table ───────────────────────────────────────────────────────────────
+function renderAuditTable() {
+  const container = document.getElementById('audit-container');
+  if (!auditEntries.length) {
+    container.innerHTML = '<div class="empty-state">No audit entries yet.</div>';
+    return;
+  }
+  document.getElementById('audit-count').textContent = auditEntries.length;
+  const rows = auditEntries.map(e => `
+    <tr>
+      <td style="color:var(--muted);white-space:nowrap;font-size:11px">${e.timestamp ? e.timestamp.slice(11, 19) : ''}</td>
+      <td><code style="font-size:11px;color:var(--accent2)">${escHtml(e.action_type)}</code></td>
+      <td><span class="decision-chip ${e.decision}">${e.decision}</span></td>
+      <td><span class="risk-chip ${e.risk_level}">${e.risk_level}</span></td>
+      <td style="max-width:240px;color:var(--muted);font-size:11px">${escHtml(e.reason)}</td>
+      <td style="font-size:11px;color:${e.approved ? 'var(--green)' : 'var(--red)'}">${e.approved === null ? '—' : e.approved ? 'Yes' : 'No'}</td>
+    </tr>`).join('');
+  container.innerHTML = `
+    <table class="audit-table">
+      <thead><tr>
+        <th>Time</th><th>Action</th><th>Decision</th><th>Risk</th><th>Reason</th><th>Approved</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+async function fetchAudit() {
+  try {
+    const url = currentTaskId ? `/api/audit?task_id=${currentTaskId}` : '/api/audit';
+    const r = await fetch(url);
+    const d = await r.json();
+    auditEntries = d.entries || [];
+    renderAuditTable();
+  } catch (e) {
+    console.error('Audit fetch failed', e);
+  }
+}
+
+// ── Approval card ─────────────────────────────────────────────────────────────
+function showApprovalCard(evt) {
+  document.getElementById('appr-action').textContent = evt.action_type || '';
+  document.getElementById('appr-dest').textContent = evt.destination || '(current page)';
+  document.getElementById('appr-reason').textContent = evt.reason || '';
+  const risk = evt.risk_level || 'MEDIUM';
+  const riskEl = document.getElementById('appr-risk');
+  riskEl.textContent = risk;
+  riskEl.className = `appr-risk ${risk}`;
+  document.getElementById('approval-card').classList.add('visible');
+}
+
+function hideApprovalCard() {
+  document.getElementById('approval-card').classList.remove('visible');
+  pendingApprovalTaskId = null;
+}
+
+async function sendApproval(approved) {
+  const taskId = pendingApprovalTaskId || currentTaskId;
+  if (!taskId) return;
+  hideApprovalCard();
+  try {
+    await fetch('/api/approve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id: taskId, approved }),
+    });
+  } catch (e) {
+    addLog('error', `Failed to send approval: ${e}`);
+  }
+}
+
+// ── Mock server ───────────────────────────────────────────────────────────────
+async function fetchMockStatus() {
+  try {
+    const r = await fetch('/api/mock-status');
+    const d = await r.json();
+    updateMockStatus(d.submissions, d.portal_url);
+  } catch {}
+}
+
+function updateMockStatus(subs, portalUrl) {
+  const el = document.getElementById('mock-subs');
+  if (el) {
+    el.textContent = subs;
+    el.className = `mock-val ${subs === 0 ? 'zero' : 'nonzero'}`;
+  }
+  const link = document.getElementById('mock-link');
+  if (link && portalUrl) { link.href = portalUrl; }
+}
+
+async function resetMock() {
+  await fetch('/api/reset', { method: 'POST' });
+  fetchMockStatus();
+  addLog('log', 'Mock server counter reset.');
+}
+
+// ── Util ──────────────────────────────────────────────────────────────────────
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
+

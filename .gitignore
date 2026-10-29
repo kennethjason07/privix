@@ -1,0 +1,55 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[oc]
+*.pyd
+*.pyo
+*.pyw
+
+# ── Build / dist ──────────────────────────────────────────────────────────────
+build/
+dist/
+wheels/
+*.egg-info/
+*.egg
+.eggs/
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── uv ────────────────────────────────────────────────────────────────────────
+# uv.lock is intentionally committed for reproducible installs
+
+# ── Testing & coverage ────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ── Logs & runtime artifacts ──────────────────────────────────────────────────
+*.log
+*.jsonl
+audit_*.json
+privix_audit_*.jsonl
+
+# ── Editor / OS ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.code-workspace
+
+# ── Secrets / env ────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Playwright / browser cache ────────────────────────────────────────────────
+.playwright/
+playwright-report/
+
+# ── Temp / scratch ────────────────────────────────────────────────────────────
+main.txt
