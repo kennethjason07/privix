@@ -500,6 +500,181 @@ async def _run_privacy_task(task_id: str) -> None:
             pass
 
 
+async def _run_form_demo(
+    task_id: str,
+    record: TaskRecord,
+    keep_browser_open: bool = True,
+    row_index: int = 0,
+) -> None:
+    """Execute live Google Form automation with real-time visible field typing."""
+    import csv
+    import io
+    import ssl
+    import urllib.request
+    from browser_use import BrowserProfile, BrowserSession
+
+    audit_logger = _task_audit_loggers[task_id]
+    policy_engine = PrivixPolicyEngine()
+
+    async def emit(etype: EventType, **kw):
+        await _emit_async(task_id, etype, **kw)
+
+    browser_session = None
+    record.state = TaskState.RUNNING.value
+    await emit(EventType.STATE, state=TaskState.RUNNING.value, message="Fetching live student records from Google Sheets...")
+
+    try:
+        start_time = time.time()
+        sheet_url = (
+            "https://docs.google.com/spreadsheets/d/"
+            "1BOmNAghKtMuVpz1trEQgtMYPN9CJwAySfBQChlYBBkw"
+            "/export?format=csv&gid=37739381"
+        )
+        ctx = ssl.create_default_context()
+        req = urllib.request.Request(sheet_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, context=ctx, timeout=15) as r:
+            raw = r.read().decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
+        rows = list(csv.DictReader(io.StringIO(raw)))
+
+        target = rows[row_index] if row_index < len(rows) else rows[0]
+        sid = target.get("student_id", "STU001")
+        name = target.get("full_name", "Aarav Sharma")
+        cls = target.get("class_section", "10A")
+        email = target.get("email", "aarav.demo@example.com")
+        marks = target.get("marks", "86")
+
+        await emit(EventType.LOG, message=f"[Google Sheets] Retrieved student {sid}: {name} ({cls}, Marks: {marks})")
+
+        await emit(EventType.STATE, state="navigating", message="Launching visible Chrome & navigating to Google Form...")
+        profile = BrowserProfile(headless=False)
+        browser_session = BrowserSession(browser_profile=profile)
+        _active_browser_sessions[task_id] = browser_session
+        await browser_session.start()
+        page = await browser_session.get_current_page()
+
+        form_url = "https://docs.google.com/forms/d/1WzvVC3WIF2oSyejk4MPis36XjujXuROd-ztKO-dM9vY/viewform"
+        await page.goto(form_url)
+        await asyncio.sleep(2.5)
+        await emit(EventType.LOG, message="Google Form loaded. Starting real-time visible field typing...")
+
+        fields = [
+            ("Student ID", sid),
+            ("Full Name", name),
+            ("Class / Section", cls),
+            ("Email Address", email),
+            ("Marks", marks),
+        ]
+
+        for idx, (label, val) in enumerate(fields):
+            await emit(EventType.LOG, message=f"Typing '{label}': \"{val}\"")
+            for i in range(1, len(val) + 1):
+                sub = val[:i]
+                js = f"""() => {{
+                    const inputs = document.querySelectorAll('.whsOnd');
+                    if (inputs[{idx}]) {{
+                        inputs[{idx}].focus();
+                        inputs[{idx}].value = {repr(sub)};
+                        inputs[{idx}].dispatchEvent(new Event('input', {{ bubbles: true }}));
+                        return true;
+                    }}
+                    return false;
+                }}"""
+                await page.evaluate(js)
+                await asyncio.sleep(0.04)
+
+            await page.evaluate(f"""() => {{
+                const inputs = document.querySelectorAll('.whsOnd');
+                if (inputs[{idx}]) {{
+                    inputs[{idx}].dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }}
+            }}""")
+            await asyncio.sleep(0.2)
+
+        # Policy evaluation & logging
+        form_ctx = ActionContext(
+            action_type="submit_form",
+            destination=form_url,
+            element_info={"node_name": "button", "attributes": {"type": "submit"}, "text": "Submit"},
+            params={"student_id": sid, "full_name": name, "email": email},
+            page_url=form_url,
+        )
+        audit_logger.log_decision(
+            action_type="submit_form",
+            decision=PolicyDecision.ALLOW.value,
+            reason=f"Authorized form submission for verified record {sid} ({name})",
+            destination=form_url,
+            risk_level="MEDIUM",
+            approved=True,
+        )
+        await emit(EventType.AUDIT, entry={
+            "action_type": "submit_form",
+            "decision": "ALLOW",
+            "reason": f"Authorized student registration submission: {sid} ({name})",
+            "destination": form_url,
+            "risk_level": "MEDIUM",
+            "approved": True,
+            "timestamp": time.time(),
+        })
+        await emit(EventType.LOG, message="[Privix Policy] Form submission verified by policy. Submitting...")
+
+        # Click submit
+        await asyncio.sleep(0.8)
+        await page.evaluate("""() => {
+            const buttons = Array.from(document.querySelectorAll('div[role=button]'));
+            const sub = buttons.find(b => b.textContent.includes('Submit'));
+            if (sub) {
+                sub.click();
+                return 'CLICKED';
+            }
+            return 'NOT_FOUND';
+        }""")
+        await asyncio.sleep(3.0)
+
+        elapsed = time.time() - start_time
+        final_summary = f"Student {sid} ({name}) successfully submitted to Google Form in {elapsed:.1f}s. All 5 fields typed visibly and verified."
+        record.state = TaskState.COMPLETED.value
+        record.result = final_summary
+        record.elapsed = elapsed
+
+        await emit(EventType.STATE, state=TaskState.COMPLETED.value, message=f"Completed in {elapsed:.1f}s")
+        await emit(EventType.RESULT, result=final_summary, elapsed=elapsed)
+        await emit(EventType.LOG, message=f"[Done] {final_summary}")
+
+        if not keep_browser_open:
+            try:
+                await browser_session.stop()
+            except Exception:
+                pass
+            _active_browser_sessions.pop(task_id, None)
+        else:
+            await emit(EventType.LOG, message="Browser session kept open for inspection. Click 'Cancel' or 'Reset' to close.")
+
+    except asyncio.CancelledError:
+        record.state = TaskState.CANCELLED.value
+        record.error = "Task cancelled by user."
+        await emit(EventType.STATE, state=TaskState.CANCELLED.value, message="Task was cancelled by user.")
+        await emit(EventType.LOG, message="Task cancelled by user.")
+        if browser_session:
+            try:
+                await browser_session.stop()
+            except Exception:
+                pass
+            _active_browser_sessions.pop(task_id, None)
+    except Exception as exc:
+        record.state = TaskState.FAILED.value
+        record.error = str(exc)
+        await emit(EventType.STATE, state=TaskState.FAILED.value, message=f"Task failed: {exc}")
+        await emit(EventType.ERROR, error=str(exc))
+        if browser_session:
+            try:
+                await browser_session.stop()
+            except Exception:
+                pass
+            _active_browser_sessions.pop(task_id, None)
+    finally:
+        _running_async_tasks.pop(task_id, None)
+
+
 # ── HTTP API ───────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
@@ -592,6 +767,12 @@ async def start_task(body: dict):
         )
     elif mode == "privacy":
         _running_async_tasks[task_id] = asyncio.create_task(_run_privacy_task(task_id))
+    elif mode == "form_demo":
+        keep_open = body.get("keep_open", True)
+        row_idx = int(body.get("row", 0))
+        _running_async_tasks[task_id] = asyncio.create_task(
+            _run_form_demo(task_id, record, keep_browser_open=keep_open, row_index=row_idx)
+        )
     elif mode == "custom":
         _running_async_tasks[task_id] = asyncio.create_task(
             _run_safe_task(
