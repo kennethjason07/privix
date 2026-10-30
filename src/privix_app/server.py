@@ -545,17 +545,50 @@ async def _run_form_demo(
 
         await emit(EventType.LOG, message=f"[Google Sheets] Retrieved student {sid}: {name} ({cls}, Marks: {marks})")
 
-        await emit(EventType.STATE, state="navigating", message="Launching visible Chrome & navigating to Google Form...")
+        # ── Step 1: Open Google Spreadsheet visually ──────────────────────────
+        await emit(EventType.STATE, state="navigating", message="Opening Google Spreadsheet to show source data...")
         profile = BrowserProfile(headless=False)
         browser_session = BrowserSession(browser_profile=profile)
         _active_browser_sessions[task_id] = browser_session
         await browser_session.start()
         page = await browser_session.get_current_page()
 
+        sheet_view_url = (
+            "https://docs.google.com/spreadsheets/d/"
+            "1BOmNAghKtMuVpz1trEQgtMYPN9CJwAySfBQChlYBBkw"
+            "/edit?gid=37739381"
+        )
+        await page.goto(sheet_view_url)
+        await asyncio.sleep(3.5)
+
+        # Inject visual indicator on the sheet
+        await page.evaluate(f"""() => {{
+            const b = document.createElement('div');
+            b.style.position = 'fixed';
+            b.style.top = '18px';
+            b.style.left = '50%';
+            b.style.transform = 'translateX(-50%)';
+            b.style.zIndex = '999999';
+            b.style.background = '#0f172a';
+            b.style.border = '2px solid #10b981';
+            b.style.color = '#fff';
+            b.style.padding = '12px 24px';
+            b.style.borderRadius = '10px';
+            b.style.fontFamily = 'system-ui, sans-serif';
+            b.style.fontSize = '14px';
+            b.style.boxShadow = '0 10px 30px rgba(0,0,0,0.6)';
+            b.innerHTML = '📊 <span style="color:#10b981;font-weight:700;">Privix Agent:</span> Reading Cells for <b>{name}</b> ({sid}, {cls}, {email}, {marks}) → Copying to Google Form...';
+            document.body.appendChild(b);
+        }}""")
+        await emit(EventType.LOG, message=f"[Spreadsheet] Displaying row for {name} ({sid}) in real-time...")
+        await asyncio.sleep(3.0)
+
+        # ── Step 2: Navigate to Google Form ───────────────────────────────────
+        await emit(EventType.STATE, state="navigating", message="Navigating to Google Form to paste cells...")
         form_url = "https://docs.google.com/forms/d/1WzvVC3WIF2oSyejk4MPis36XjujXuROd-ztKO-dM9vY/viewform"
         await page.goto(form_url)
         await asyncio.sleep(2.5)
-        await emit(EventType.LOG, message="Google Form loaded. Starting real-time visible field typing...")
+        await emit(EventType.LOG, message="Google Form loaded. Pasting each cell value into the form fields...")
 
         fields = [
             ("Student ID", sid),

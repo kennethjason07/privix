@@ -38,6 +38,11 @@ SHEET_CSV_URL = (
     "1BOmNAghKtMuVpz1trEQgtMYPN9CJwAySfBQChlYBBkw"
     "/export?format=csv&gid=37739381"
 )
+SHEET_VIEW_URL = (
+    "https://docs.google.com/spreadsheets/d/"
+    "1BOmNAghKtMuVpz1trEQgtMYPN9CJwAySfBQChlYBBkw"
+    "/edit?gid=37739381"
+)
 FORM_URL = (
     "https://docs.google.com/forms/d/"
     "1WzvVC3WIF2oSyejk4MPis36XjujXuROd-ztKO-dM9vY/viewform"
@@ -66,16 +71,71 @@ async def fill_single_record(page, record, row_index, total_rows):
     print(f"  Class   : {record.get('class_section')} | Email: {record.get('email')} | Marks: {record.get('marks')}")
     print(f"============================================================")
 
-    print("\n[1/3] Navigating to Google Form...")
+    # ── Step 1: Open Google Spreadsheet and show the data being selected ─────
+    print("\n[1/4] Opening Google Spreadsheet to inspect source data...")
+    await page.goto(SHEET_VIEW_URL)
+    await asyncio.sleep(3.5)
+
+    # Inject visual banner onto spreadsheet
+    sid = record.get('student_id', '')
+    name = record.get('full_name', '')
+    cls = record.get('class_section', '')
+    marks = record.get('marks', '')
+    email = record.get('email', '')
+
+    await page.evaluate(f"""() => {{
+        const b = document.createElement('div');
+        b.id = 'privix-banner';
+        b.style.position = 'fixed';
+        b.style.top = '18px';
+        b.style.left = '50%';
+        b.style.transform = 'translateX(-50%)';
+        b.style.zIndex = '999999';
+        b.style.background = '#0f172a';
+        b.style.border = '2px solid #10b981';
+        b.style.color = '#fff';
+        b.style.padding = '12px 24px';
+        b.style.borderRadius = '10px';
+        b.style.fontFamily = 'system-ui, sans-serif';
+        b.style.fontSize = '14px';
+        b.style.boxShadow = '0 10px 30px rgba(0,0,0,0.6)';
+        b.innerHTML = '📊 <span style="color:#10b981;font-weight:700;">Privix Agent:</span> Reading Cells for <b>{name}</b> (Row {row_index + 1}: {sid}, {cls}, {email}, {marks}) → Copying to Google Form...';
+        document.body.appendChild(b);
+    }}""")
+    print(f"   -> Showing row in Google Sheet: {sid} | {name} | {cls} | {email} | {marks}")
+    await asyncio.sleep(3.0)
+
+    # ── Step 2: Navigate to Google Form ──────────────────────────────────────
+    print("\n[2/4] Navigating to Google Form...")
     await page.goto(FORM_URL)
     await asyncio.sleep(2.5)
 
-    print("[2/3] Real-time visible field typing:")
+    # Inject banner onto form
+    await page.evaluate(f"""() => {{
+        const b = document.createElement('div');
+        b.style.position = 'fixed';
+        b.style.top = '12px';
+        b.style.left = '50%';
+        b.style.transform = 'translateX(-50%)';
+        b.style.zIndex = '999999';
+        b.style.background = '#0f172a';
+        b.style.border = '2px solid #38bdf8';
+        b.style.color = '#fff';
+        b.style.padding = '10px 22px';
+        b.style.borderRadius = '8px';
+        b.style.fontFamily = 'system-ui, sans-serif';
+        b.style.fontSize = '13.5px';
+        b.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
+        b.innerHTML = '📝 <span style="color:#38bdf8;font-weight:700;">Privix Pasting:</span> Typing cells from Spreadsheet into Form in real-time...';
+        document.body.appendChild(b);
+    }}""")
+
+    # ── Step 3: Type each cell value visibly into the matching field ─────────
+    print("\n[3/4] Pasting each cell value into the Form:")
     for field_idx, (key, label) in enumerate(FIELD_LABELS):
         val = str(record.get(key, "")).strip()
-        print(f"   -> Typing '{label}': \"{val}\"...", end="", flush=True)
+        print(f"   -> Cell [{label}]: \"{val}\"...", end="", flush=True)
 
-        # Type character by character into .whsOnd input at field_idx
         for i in range(1, len(val) + 1):
             sub = val[:i]
             js = f"""() => {{
@@ -89,19 +149,19 @@ async def fill_single_record(page, record, row_index, total_rows):
                 return false;
             }}"""
             await page.evaluate(js)
-            await asyncio.sleep(0.04)  # 40ms per keystroke (human typing speed)
+            await asyncio.sleep(0.04)
 
-        # Trigger change event when field is complete
         await page.evaluate(f"""() => {{
             const inputs = document.querySelectorAll('.whsOnd');
             if (inputs[{field_idx}]) {{
                 inputs[{field_idx}].dispatchEvent(new Event('change', {{ bubbles: true }}));
             }}
         }}""")
-        print(" [OK]")
+        print(" [PASTED]")
         await asyncio.sleep(0.35)
 
-    print("\n[3/3] Submitting the form...")
+    # ── Step 4: Submit ───────────────────────────────────────────────────────
+    print("\n[4/4] Submitting the form...")
     await asyncio.sleep(1.0)
     submit_res = await page.evaluate("""() => {
         const buttons = Array.from(document.querySelectorAll('div[role=button]'));
@@ -115,7 +175,7 @@ async def fill_single_record(page, record, row_index, total_rows):
     print(f"   -> Submit trigger: {submit_res}")
     await asyncio.sleep(3.0)
 
-    print(f"   -> Confirmation: Form submitted successfully for {record.get('full_name')}!")
+    print(f"   -> Confirmed: Record for {record.get('full_name')} submitted to Google Form!")
 
 
 async def run_visible_demo(row_idx=0, all_rows=False):
