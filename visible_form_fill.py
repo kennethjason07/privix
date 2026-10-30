@@ -76,7 +76,7 @@ async def fill_single_record(page, record, row_index, total_rows):
     await page.goto(SHEET_VIEW_URL)
     await asyncio.sleep(3.5)
 
-    # Inject visual banner onto spreadsheet
+    # Inject visual banner onto spreadsheet safely
     sid = record.get('student_id', '')
     name = record.get('full_name', '')
     cls = record.get('class_section', '')
@@ -84,23 +84,30 @@ async def fill_single_record(page, record, row_index, total_rows):
     email = record.get('email', '')
 
     await page.evaluate(f"""() => {{
-        const b = document.createElement('div');
-        b.id = 'privix-banner';
-        b.style.position = 'fixed';
-        b.style.top = '18px';
-        b.style.left = '50%';
-        b.style.transform = 'translateX(-50%)';
-        b.style.zIndex = '999999';
-        b.style.background = '#0f172a';
-        b.style.border = '2px solid #10b981';
-        b.style.color = '#fff';
-        b.style.padding = '12px 24px';
-        b.style.borderRadius = '10px';
-        b.style.fontFamily = 'system-ui, sans-serif';
-        b.style.fontSize = '14px';
-        b.style.boxShadow = '0 10px 30px rgba(0,0,0,0.6)';
-        b.innerHTML = '📊 <span style="color:#10b981;font-weight:700;">Privix Agent:</span> Reading Cells for <b>{name}</b> (Row {row_index + 1}: {sid}, {cls}, {email}, {marks}) → Copying to Google Form...';
-        document.body.appendChild(b);
+        try {{
+            const target = document.body || document.documentElement;
+            if (!target) return false;
+            const b = document.createElement('div');
+            b.id = 'privix-banner';
+            b.style.position = 'fixed';
+            b.style.top = '18px';
+            b.style.left = '50%';
+            b.style.transform = 'translateX(-50%)';
+            b.style.zIndex = '999999';
+            b.style.background = '#0f172a';
+            b.style.border = '2px solid #10b981';
+            b.style.color = '#fff';
+            b.style.padding = '12px 24px';
+            b.style.borderRadius = '10px';
+            b.style.fontFamily = 'system-ui, sans-serif';
+            b.style.fontSize = '14px';
+            b.style.boxShadow = '0 10px 30px rgba(0,0,0,0.6)';
+            b.textContent = '📊 Privix Agent: Reading Cells for {name} (Row {row_index + 1}: {sid}, {cls}, {email}, {marks}) → Copying to Google Form...';
+            target.appendChild(b);
+            return true;
+        }} catch (e) {{
+            return false;
+        }}
     }}""")
     print(f"   -> Showing row in Google Sheet: {sid} | {name} | {cls} | {email} | {marks}")
     await asyncio.sleep(3.0)
@@ -110,24 +117,31 @@ async def fill_single_record(page, record, row_index, total_rows):
     await page.goto(FORM_URL)
     await asyncio.sleep(2.5)
 
-    # Inject banner onto form
+    # Inject banner onto form safely
     await page.evaluate(f"""() => {{
-        const b = document.createElement('div');
-        b.style.position = 'fixed';
-        b.style.top = '12px';
-        b.style.left = '50%';
-        b.style.transform = 'translateX(-50%)';
-        b.style.zIndex = '999999';
-        b.style.background = '#0f172a';
-        b.style.border = '2px solid #38bdf8';
-        b.style.color = '#fff';
-        b.style.padding = '10px 22px';
-        b.style.borderRadius = '8px';
-        b.style.fontFamily = 'system-ui, sans-serif';
-        b.style.fontSize = '13.5px';
-        b.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
-        b.innerHTML = '📝 <span style="color:#38bdf8;font-weight:700;">Privix Pasting:</span> Typing cells from Spreadsheet into Form in real-time...';
-        document.body.appendChild(b);
+        try {{
+            const target = document.body || document.documentElement;
+            if (!target) return false;
+            const b = document.createElement('div');
+            b.style.position = 'fixed';
+            b.style.top = '12px';
+            b.style.left = '50%';
+            b.style.transform = 'translateX(-50%)';
+            b.style.zIndex = '999999';
+            b.style.background = '#0f172a';
+            b.style.border = '2px solid #38bdf8';
+            b.style.color = '#fff';
+            b.style.padding = '10px 22px';
+            b.style.borderRadius = '8px';
+            b.style.fontFamily = 'system-ui, sans-serif';
+            b.style.fontSize = '13.5px';
+            b.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
+            b.textContent = '📝 Privix Pasting: Typing cells from Spreadsheet into Form in real-time...';
+            target.appendChild(b);
+            return true;
+        }} catch (e) {{
+            return false;
+        }}
     }}""")
 
     # ── Step 3: Type each cell value visibly into the matching field ─────────
@@ -157,11 +171,11 @@ async def fill_single_record(page, record, row_index, total_rows):
                 inputs[{field_idx}].dispatchEvent(new Event('change', {{ bubbles: true }}));
             }}
         }}""")
-        print(" [PASTED]")
+        print(" [PASTED]", flush=True)
         await asyncio.sleep(0.35)
 
     # ── Step 4: Submit ───────────────────────────────────────────────────────
-    print("\n[4/4] Submitting the form...")
+    print("\n[4/4] Submitting the form...", flush=True)
     await asyncio.sleep(1.0)
     submit_res = await page.evaluate("""() => {
         const buttons = Array.from(document.querySelectorAll('div[role=button]'));
@@ -172,24 +186,24 @@ async def fill_single_record(page, record, row_index, total_rows):
         }
         return 'NOT_FOUND';
     }""")
-    print(f"   -> Submit trigger: {submit_res}")
+    print(f"   -> Submit trigger: {submit_res}", flush=True)
     await asyncio.sleep(3.0)
 
-    print(f"   -> Confirmed: Record for {record.get('full_name')} submitted to Google Form!")
+    print(f"   -> Confirmed: Record for {record.get('full_name')} submitted to Google Form!", flush=True)
 
 
-async def run_visible_demo(row_idx=0, all_rows=False):
-    print("\n" + "=" * 64)
-    print("  PRIVIX REAL-TIME VISIBLE AUTOMATION DEMO")
-    print("=" * 64)
+async def run_visible_demo(row_idx=0, all_rows=False, keep_open=False):
+    print("\n" + "=" * 64, flush=True)
+    print("  PRIVIX REAL-TIME VISIBLE AUTOMATION DEMO", flush=True)
+    print("=" * 64, flush=True)
 
-    print("[Privix] Fetching live data from Google Spreadsheet...")
+    print("[Privix] Fetching live data from Google Spreadsheet...", flush=True)
     rows = fetch_rows()
-    print(f"[Privix] Fetched {len(rows)} records from Google Sheet.")
+    print(f"[Privix] Fetched {len(rows)} records from Google Sheet.", flush=True)
 
     targets = rows if all_rows else [rows[row_idx]]
 
-    print("[Privix] Launching visible Chrome window...")
+    print("[Privix] Launching visible Chrome window...", flush=True)
     profile = BrowserProfile(headless=False)
     session = BrowserSession(browser_profile=profile)
     await session.start()
@@ -201,16 +215,19 @@ async def run_visible_demo(row_idx=0, all_rows=False):
             if i < len(targets) - 1:
                 await asyncio.sleep(2.0)
 
-        print("\n" + "=" * 64)
-        print("  DEMO COMPLETE: Real-time typing & submission verified!")
-        print("  Browser window is kept open for judges to inspect.")
-        print("  Press Ctrl+C in terminal when done.")
-        print("=" * 64 + "\n")
-
-        while True:
-            await asyncio.sleep(1)
+        print("\n" + "=" * 64, flush=True)
+        print("  DEMO COMPLETE: Real-time typing & submission verified!", flush=True)
+        if keep_open:
+            print("  Browser window is kept open. Press Ctrl+C in terminal when done.", flush=True)
+            print("=" * 64 + "\n", flush=True)
+            while True:
+                await asyncio.sleep(1)
+        else:
+            print("  Keeping browser open for 10 seconds for visual verification...", flush=True)
+            print("=" * 64 + "\n", flush=True)
+            await asyncio.sleep(10.0)
     except (KeyboardInterrupt, asyncio.CancelledError):
-        print("\n[Privix] Closing browser session...")
+        print("\n[Privix] Closing browser session...", flush=True)
     finally:
         try:
             await session.stop()
@@ -222,9 +239,10 @@ def main():
     parser = argparse.ArgumentParser(description="Privix Visible Form Filling Automation")
     parser.add_argument("--row", type=int, default=0, help="Row index to submit (0 to 9, default: 0)")
     parser.add_argument("--all", action="store_true", help="Submit all rows sequentially")
+    parser.add_argument("--keep-open", action="store_true", help="Keep browser open indefinitely until Ctrl+C")
     args = parser.parse_args()
 
-    asyncio.run(run_visible_demo(row_idx=args.row, all_rows=args.all))
+    asyncio.run(run_visible_demo(row_idx=args.row, all_rows=args.all, keep_open=args.keep_open))
 
 
 if __name__ == "__main__":

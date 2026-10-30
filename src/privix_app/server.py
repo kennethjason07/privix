@@ -563,22 +563,29 @@ async def _run_form_demo(
 
         # Inject visual indicator on the sheet
         await page.evaluate(f"""() => {{
-            const b = document.createElement('div');
-            b.style.position = 'fixed';
-            b.style.top = '18px';
-            b.style.left = '50%';
-            b.style.transform = 'translateX(-50%)';
-            b.style.zIndex = '999999';
-            b.style.background = '#0f172a';
-            b.style.border = '2px solid #10b981';
-            b.style.color = '#fff';
-            b.style.padding = '12px 24px';
-            b.style.borderRadius = '10px';
-            b.style.fontFamily = 'system-ui, sans-serif';
-            b.style.fontSize = '14px';
-            b.style.boxShadow = '0 10px 30px rgba(0,0,0,0.6)';
-            b.innerHTML = '📊 <span style="color:#10b981;font-weight:700;">Privix Agent:</span> Reading Cells for <b>{name}</b> ({sid}, {cls}, {email}, {marks}) → Copying to Google Form...';
-            document.body.appendChild(b);
+            try {{
+                const target = document.body || document.documentElement;
+                if (!target) return false;
+                const b = document.createElement('div');
+                b.style.position = 'fixed';
+                b.style.top = '18px';
+                b.style.left = '50%';
+                b.style.transform = 'translateX(-50%)';
+                b.style.zIndex = '999999';
+                b.style.background = '#0f172a';
+                b.style.border = '2px solid #10b981';
+                b.style.color = '#fff';
+                b.style.padding = '12px 24px';
+                b.style.borderRadius = '10px';
+                b.style.fontFamily = 'system-ui, sans-serif';
+                b.style.fontSize = '14px';
+                b.style.boxShadow = '0 10px 30px rgba(0,0,0,0.6)';
+                b.textContent = '📊 Privix Agent: Reading Cells for {name} ({sid}, {cls}, {email}, {marks}) → Copying to Google Form...';
+                target.appendChild(b);
+                return true;
+            }} catch (e) {{
+                return false;
+            }}
         }}""")
         await emit(EventType.LOG, message=f"[Spreadsheet] Displaying row for {name} ({sid}) in real-time...")
         await asyncio.sleep(3.0)
